@@ -7,7 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, FromRow)]
 pub struct Fingerprint {
     pub hash: i32,      // Stored as i32 in Postgres, but represents u32
-    pub track_id: Uuid, // Stored as i32 in Postgres, but represents u32
+    pub track_id: Uuid, // Stored as UUID in Postgres
     pub offset_ms: i32,
     pub created_at: DateTime<Utc>,
 }
