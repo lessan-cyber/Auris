@@ -18,6 +18,7 @@ pub struct Track {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type)]
+#[sqlx(type_name = "track_status", rename_all = "snake_case")]
 pub enum TrackStatus {
     Pending,
     Fingerprinting,
