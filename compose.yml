@@ -65,7 +65,8 @@ services:
     rustfs-init:
         image: rustfs/rc:latest
         depends_on:
-            - rustfs
+            rustfs:
+                condition: service_healthy
         entrypoint: >
             /bin/sh -c "
             echo 'waiting for RustFS...';
