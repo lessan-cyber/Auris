@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::net::SocketAddr;
 
-#[derive(Debug, Deserialize)]
+#[derive(Deserialize)]
 #[allow(dead_code)]
 pub struct Settings {
     /// Database connection string
@@ -33,11 +33,13 @@ impl Settings {
         Ok(Self {
             database_url: std::env::var("DATABASE_URL").context("Missing DATABASE_URL")?,
             server_addr: bind_addr,
-            s3_endpoint: std::env::var("RUSTFS_ENDPOINT").context("Missing S3_ENDPOINT")?,
+            s3_endpoint: std::env::var("RUSTFS_ENDPOINT").context("Missing RUSTFS_ENDPOINT")?,
             s3_bucket_name: std::env::var("RUSTFS_BUCKET_NAME")
-                .context("Missing S3_BUCKET_NAME")?,
-            s3_access_key: std::env::var("RUSTFS_ACCESS_KEY").context("Missing S3_ACCESS_KEY")?,
-            s3_secret_key: std::env::var("RUSTFS_SECRET_KEY").context("Missing S3_SECRET_KEY")?,
+                .context("Missing RUSTFS_BUCKET_NAME")?,
+            s3_access_key: std::env::var("RUSTFS_ACCESS_KEY")
+                .context("Missing RUSTFS_ACCESS_KEY")?,
+            s3_secret_key: std::env::var("RUSTFS_SECRET_KEY")
+                .context("Missing RUSTFS_SECRET_KEY")?,
             max_file_size,
         })
     }
