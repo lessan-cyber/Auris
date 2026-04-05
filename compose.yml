@@ -29,6 +29,7 @@ services:
     #        - backend
 
     postgres:
+        container_name: postgres
         image: postgres:17-alpine
         ports:
             - "5432:5432"
@@ -56,6 +57,11 @@ services:
         command: server /data --console-address ":9001"
         volumes:
             - rustfs_data:/data
+        healthcheck:
+            test: ["CMD-SHELL", "curl -f http://localhost:9001/ || exit 1"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
     rustfs-init:
         image: rustfs/rc:latest
         depends_on:

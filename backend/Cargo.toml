@@ -4,3 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.102"
+aws-config = "1.8.15"
+aws-sdk-s3 = "1.128.0"
+axum = "0.8.8"
+chrono = { version = "0.4.44", features = ["serde"] }
+dotenvy = "0.15.7"
+rustfft = "6.4.1"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+sha2 = "0.11.0"
+sqlx = { version = "0.8.6", features = ["chrono", "migrate", "postgres", "runtime-tokio", "runtime-tokio-rustls", "uuid"] }
+symphonia = { version = "0.5.5", features = ["mp3", "wav", "flac", "ogg"] }
+tempfile = "3.27.0"
+thiserror = "2.0.18"
+tokio = { version = "1.51.0", features = ["full"] }
+tracing = "0.1.44"
+tracing-subscriber = "0.3.23"
+uuid = { version = "1.23.0", features = ["serde", "v4"] }
