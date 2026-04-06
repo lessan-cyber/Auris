@@ -1,0 +1,277 @@
+use crate::AppState;
+use crate::errors::{AppError, Result};
+use crate::models::jobs::JobStatus;
+use crate::models::tracks::{Track, TrackResponse, TrackStatus};
+use axum::extract::Path;
+use axum::{
+    Json, Router,
+    extract::{Multipart, Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    routing::{delete, get, post},
+};
+use serde::Deserialize;
+use serde::Serialize;
+use std::io;
+use std::sync::Arc;
+use uuid::Uuid;
+
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", post(create_track))
+        .route("/", get(list_tracks))
+        .route("/{id}", get(get_track))
+        .route("/{id}", delete(delete_track))
+}
+
+async fn create_track(
+    State(state): State<Arc<AppState>>,
+    mut multipart: Multipart,
+) -> Result<(StatusCode, Json<TrackResponse>)> {
+    let mut title: Option<String> = None;
+    let mut artist: Option<String> = None;
+
+    let mut file_data: Option<bytes::Bytes> = None;
+    let mut file_name: Option<String> = None;
+    let mut content_type: Option<String> = None;
+
+    // Parse multipart form
+    tracing::info!("Starting multipart form parsing");
+    while let Some(field) = multipart.next_field().await.map_err(|e| {
+        tracing::error!("Failed to get next multipart field: {}", e);
+        AppError::BadRequest(format!("Failed to parse multipart header: {}", e))
+    })? {
+        let name = field.name().map(String::from);
+        tracing::debug!("Processing field: {:?}", name);
+
+        match name.as_deref() {
+            Some("title") => {
+                title = Some(field.text().await.map_err(|e| {
+                    tracing::error!("Failed to read title text: {}", e);
+                    AppError::BadRequest(format!("Invalid title: {}", e))
+                })?);
+            }
+            Some("artist") => {
+                artist = field.text().await.ok();
+            }
+
+            Some("file") => {
+                file_name = field.file_name().map(String::from);
+                content_type = field.content_type().map(String::from);
+                tracing::info!(
+                    "File field found: name={:?}, content_type={:?}",
+                    file_name,
+                    content_type
+                );
+
+                // Collect bytes (for production, stream to S3 instead)
+                let bytes = field.bytes().await.map_err(|e| {
+                    tracing::error!("Failed to read file bytes for {:?}: {}", file_name, e);
+                    AppError::BadRequest(format!("Failed to read file: {}", e))
+                })?;
+
+                tracing::info!("Successfully read {} bytes from file field", bytes.len());
+
+                // Validate file size
+                if bytes.len() > state.settings.max_file_size {
+                    return Err(AppError::Validation(format!(
+                        "File too large: {} bytes (max: {})",
+                        bytes.len(),
+                        state.settings.max_file_size
+                    )));
+                }
+
+                file_data = Some(bytes);
+            }
+            Some(other) => {
+                tracing::warn!("Ignoring unknown field: {}", other);
+                // Consume the field bytes to avoid parser state errors
+                let _ = field.bytes().await;
+            }
+            None => {
+                tracing::warn!("Ignoring field without a name");
+                let _ = field.bytes().await;
+            }
+        }
+    }
+
+    tracing::info!(
+        "Finished multipart parsing: title={:?}, artist={:?}, file_size={:?}",
+        title,
+        artist,
+        file_data.as_ref().map(|d| d.len())
+    );
+
+    // Validate required fields
+    let title = title.ok_or_else(|| {
+        tracing::error!("Validation failed: Title is required");
+        AppError::Validation("Title is required".to_string())
+    })?;
+
+    let file_data = file_data.ok_or_else(|| {
+        tracing::error!("Validation failed: Audio file is required");
+        AppError::Validation("Audio file is required".to_string())
+    })?;
+
+    // Generate IDs
+    let track_id = Uuid::new_v4();
+    let job_id = Uuid::new_v4();
+
+    // Create object key for S3 ( organized by date for easier management)
+    let ext = file_name
+        .as_ref()
+        .and_then(|f: &String| f.rsplit('.').next())
+        .unwrap_or("bin");
+    let object_key = format!("tracks/{}/{}.{}", track_id, "original", ext);
+
+    // Debug file data before upload
+    tracing::info!(
+        "Preparing to upload file: key={}, size={} bytes, extension={}",
+        object_key,
+        file_data.len(),
+        ext
+    );
+
+    // Upload to S3/MinIO
+    state
+        .s3
+        .upload_file(&object_key, file_data.to_vec())
+        .await
+        .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
+
+    tracing::info!("Successfully uploaded file to S3");
+
+    // Insert track into database (status = pending)
+    let track = sqlx::query_as!(
+        Track,
+        r#"
+        INSERT INTO tracks (title, artist,duration_secs, object_key, status)
+        VALUES ($1, $2, $3, $4, $5 )
+        RETURNING id, title, artist, duration_secs, object_key,
+                  status as "status: TrackStatus", created_at, updated_at
+        "#,
+        title,
+        artist,
+        0, // duration unknown until we process it
+        object_key,
+        TrackStatus::Pending as TrackStatus
+    )
+    .fetch_one(&state.db)
+    .await?;
+
+    // Create fingerprint job (queued) - use the actual track.id from database
+    sqlx::query!(
+        r#"
+        INSERT INTO fingerprint_jobs (id, track_id, status)
+        VALUES ($1, $2, $3)
+        "#,
+        job_id,
+        track.id,
+        JobStatus::Queued as JobStatus
+    )
+    .execute(&state.db)
+    .await?;
+
+    tracing::info!(
+        "Created track {} with job {} (status: pending)",
+        track.id, // Use the actual track ID
+        job_id
+    );
+
+    Ok((StatusCode::CREATED, Json(track.into())))
+}
+#[derive(Deserialize)]
+struct Pagination {
+    page: Option<i64>,
+    limit: Option<i64>,
+}
+
+async fn list_tracks(
+    State(state): State<Arc<AppState>>,
+    Query(pagination): Query<Pagination>,
+) -> Result<Json<Vec<TrackResponse>>> {
+    let page = pagination.page.unwrap_or(1);
+    let limit = pagination.limit.unwrap_or(10);
+    let offset = (page - 1) * limit;
+
+    let tracks = sqlx::query_as!(
+        Track,
+        r#"
+            SELECT
+            id,
+            title,
+            artist,
+            duration_secs,
+            object_key,
+            status as "status: TrackStatus",
+            created_at,
+            updated_at
+            FROM tracks
+            ORDER BY created_at DESC
+            LIMIT $1
+            OFFSET $2
+        "#,
+        limit,
+        offset
+    )
+    .fetch_all(&state.db)
+    .await?; //
+    Ok(Json(tracks.into_iter().map(Into::into).collect()))
+}
+async fn get_track(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TrackResponse>> {
+    let track = sqlx::query_as!(
+        Track,
+        r#"
+            SELECT
+            id,
+            title,
+            artist,
+            duration_secs,
+            object_key,
+            status as "status: TrackStatus",
+            created_at,
+            updated_at
+            FROM tracks
+            WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+    Ok(Json(track.into()))
+}
+async fn delete_track(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TrackResponse>> {
+    let track = sqlx::query_as!(
+        Track,
+        r#"
+            SELECT
+                id,
+                title,
+                artist,
+                duration_secs,
+                object_key,
+                status as "status: TrackStatus",
+                created_at,
+                updated_at
+            FROM tracks
+            WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&state.db)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    sqlx::query!("DELETE FROM tracks WHERE id = $1", id)
+        .execute(&state.db)
+        .await?;
+
+    Ok(Json(track.into()))
+}
