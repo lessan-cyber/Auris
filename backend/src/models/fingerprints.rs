@@ -5,6 +5,7 @@ use uuid::Uuid;
 /// Database record for a single fingerprint hash
 /// Maps to the `fingerprints` table in the database.
 #[derive(Debug, Clone, FromRow)]
+#[allow(dead_code)]
 pub struct Fingerprint {
     pub hash: i32,      // Stored as i32 in Postgres, but represents u32
     pub track_id: Uuid, // Stored as UUID in Postgres
