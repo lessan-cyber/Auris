@@ -58,9 +58,15 @@ services:
         volumes:
             - rustfs_data:/data
         healthcheck:
-            test: ["CMD-SHELL", "curl -f http://localhost:9001/ || exit 1"]
-            interval: 5s
-            timeout: 5s
+            test:
+                [
+                    "CMD",
+                    "sh",
+                    "-c",
+                    "curl -f http://127.0.0.1:9000/health && curl -f http://127.0.0.1:9001/rustfs/console/health",
+                ]
+            interval: 30s
+            timeout: 10s
             retries: 5
     rustfs-init:
         image: rustfs/rc:latest
