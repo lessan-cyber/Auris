@@ -9,6 +9,19 @@ use tracing::{error, info, warn};
 
 pub async fn run_worker(state: Arc<AppState>) {
     info!("Worker started, Pulling Jobs");
+
+    // Spawn periodic cleanup for stale jobs
+    let db_clone = state.db.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        loop {
+            interval.tick().await;
+            if let Err(e) = jobs::reset_stale_jobs(&db_clone).await {
+                error!("Background cleanup failed: {}", e);
+            }
+        }
+    });
+
     loop {
         // fetch_next_job now atomically marks the job as 'processing'
         match jobs::fetch_next_job(&state.db).await {
@@ -26,7 +39,10 @@ pub async fn run_worker(state: Arc<AppState>) {
                     }
                     Err(e) => {
                         warn!("Job {} failed: {}", job.id, e);
-                        let _ = mark_failed(&state.db, job.id, &e.to_string()).await;
+                        if let Err(mark_err) = mark_failed(&state.db, job.id, &e.to_string()).await
+                        {
+                            error!("Failed to mark job {} as failed: {}", job.id, mark_err);
+                        }
                     }
                 }
             }
@@ -50,13 +66,13 @@ async fn process_job_stub(
 ) -> anyhow::Result<()> {
     // Simulate CPU-intensive work
     info!("Pretending to fingerprint track {}...", job.track_id);
-
+    let mut tx = state.db.begin().await?;
     // Update track status to 'fingerprinting'
     sqlx::query!(
         "UPDATE tracks SET status = 'fingerprinting' WHERE id = $1",
         job.track_id
     )
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
 
     // Simulate work: sleep for 3 seconds (replace with real logic)
@@ -69,9 +85,9 @@ async fn process_job_stub(
         fake_duration,
         job.track_id
     )
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
-
+    tx.commit().await?;
     info!(
         "Track {} ready (duration: {}s)",
         job.track_id, fake_duration
