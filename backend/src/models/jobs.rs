@@ -13,6 +13,7 @@ pub struct FingerprintJob {
     pub attempts: i32,
     pub error_message: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
     pub completed_at: Option<DateTime<Utc>>,
 }
 
