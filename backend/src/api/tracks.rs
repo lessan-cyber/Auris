@@ -164,7 +164,7 @@ async fn create_track(
     )
     .execute(&mut *tx)
     .await?;
-    tx.commit().await?;
+
     tracing::info!(
         "Created track {} with job {} (status: pending)",
         track.id, // Use the actual track ID
@@ -176,8 +176,11 @@ async fn create_track(
         .s3
         .upload_file(&object_key, file_data.to_vec())
         .await
-        .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
+        .map_err(|e|
+             // Transaction will be rolled back automatically when tx is dropped
+            AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
 
+    tx.commit().await?;
     tracing::info!("Successfully uploaded file to S3");
     Ok((StatusCode::CREATED, Json(track.into())))
 }
@@ -281,42 +284,33 @@ async fn get_track_url(
     tx.commit().await?;
     Ok(Json(response))
 }
-
 async fn delete_track(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TrackResponse>> {
-    let mut tx = state.db.begin().await?;
+    // Fetch and delete in one transaction
     let track = sqlx::query_as!(
         Track,
         r#"
-            SELECT
-                id,
-                title,
-                artist,
-                duration_secs,
-                object_key,
-                status as "status: TrackStatus",
-                created_at,
-                updated_at
-            FROM tracks
+            DELETE FROM tracks
             WHERE id = $1
+            RETURNING id, title, artist, duration_secs, object_key,
+                      status as "status: TrackStatus", created_at, updated_at
         "#,
         id
     )
-    .fetch_optional(&mut *tx)
+    .fetch_optional(&state.db)
     .await?
     .ok_or(AppError::NotFound)?;
-    tx.commit().await?;
-    // Delete the file from S3
-    state
-        .s3
-        .delete_file(&track.object_key)
-        .await
-        .map_err(|e| AppError::Storage(format!("Failed to delete from storage: {}", e)))?;
-    sqlx::query!("DELETE FROM tracks WHERE id = $1", id)
-        .execute(&state.db)
-        .await?;
-
+    // Delete S3 object after DB delete succeeds
+    // If this fails, we log it but the track is already deleted from DB
+    state.s3.delete_file(&track.object_key).await.map_err(|e| {
+        tracing::error!(
+            "Failed to delete S3 object {} after DB delete: {}",
+            track.object_key,
+            e
+        );
+        AppError::Storage(format!("Failed to delete from storage: {}", e))
+    })?;
     Ok(Json(track.into()))
 }
