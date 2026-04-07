@@ -12,6 +12,7 @@ use axum::{
 };
 use serde::Deserialize;
 use serde::Serialize;
+use serde_json;
 use std::io;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -22,6 +23,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/", get(list_tracks))
         .route("/{id}", get(get_track))
         .route("/{id}", delete(delete_track))
+        .route("/{id}/url", get(get_track_url))
 }
 
 async fn create_track(
@@ -123,7 +125,6 @@ async fn create_track(
         .and_then(|f: &String| f.rsplit('.').next())
         .unwrap_or("bin");
     let object_key = format!("tracks/{}/{}.{}", track_id, "original", ext);
-
     // Debug file data before upload
     tracing::info!(
         "Preparing to upload file: key={}, size={} bytes, extension={}",
@@ -131,32 +132,24 @@ async fn create_track(
         file_data.len(),
         ext
     );
-
-    // Upload to S3/MinIO
-    state
-        .s3
-        .upload_file(&object_key, file_data.to_vec())
-        .await
-        .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
-
-    tracing::info!("Successfully uploaded file to S3");
-
+    let mut tx = state.db.begin().await?;
     // Insert track into database (status = pending)
     let track = sqlx::query_as!(
         Track,
         r#"
-        INSERT INTO tracks (title, artist,duration_secs, object_key, status)
-        VALUES ($1, $2, $3, $4, $5 )
+        INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)
+        VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, title, artist, duration_secs, object_key,
                   status as "status: TrackStatus", created_at, updated_at
         "#,
+        track_id,
         title,
         artist,
         0, // duration unknown until we process it
         object_key,
         TrackStatus::Pending as TrackStatus
     )
-    .fetch_one(&state.db)
+    .fetch_one(&mut *tx)
     .await?;
 
     // Create fingerprint job (queued) - use the actual track.id from database
@@ -169,15 +162,23 @@ async fn create_track(
         track.id,
         JobStatus::Queued as JobStatus
     )
-    .execute(&state.db)
+    .execute(&mut *tx)
     .await?;
-
+    tx.commit().await?;
     tracing::info!(
         "Created track {} with job {} (status: pending)",
         track.id, // Use the actual track ID
         job_id
     );
 
+    // Upload to S3/MinIO
+    state
+        .s3
+        .upload_file(&object_key, file_data.to_vec())
+        .await
+        .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
+
+    tracing::info!("Successfully uploaded file to S3");
     Ok((StatusCode::CREATED, Json(track.into())))
 }
 #[derive(Deserialize)]
@@ -190,10 +191,10 @@ async fn list_tracks(
     State(state): State<Arc<AppState>>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<TrackResponse>>> {
-    let page = pagination.page.unwrap_or(1);
-    let limit = pagination.limit.unwrap_or(10);
+    let page = pagination.page.unwrap_or(1).max(1);
+    let limit = pagination.limit.unwrap_or(10).clamp(1, 100);
     let offset = (page - 1) * limit;
-
+    let mut tx = state.db.begin().await?;
     let tracks = sqlx::query_as!(
         Track,
         r#"
@@ -214,14 +215,16 @@ async fn list_tracks(
         limit,
         offset
     )
-    .fetch_all(&state.db)
-    .await?; //
+    .fetch_all(&mut *tx)
+    .await?;
+    tx.commit().await?;
     Ok(Json(tracks.into_iter().map(Into::into).collect()))
 }
 async fn get_track(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TrackResponse>> {
+    let mut tx = state.db.begin().await?;
     let track = sqlx::query_as!(
         Track,
         r#"
@@ -239,15 +242,51 @@ async fn get_track(
         "#,
         id
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
+    tx.commit().await?;
     Ok(Json(track.into()))
 }
+async fn get_track_url(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>> {
+    let mut tx = state.db.begin().await?;
+    // Get just the object_key for the track
+    let object_key: String = sqlx::query_scalar!(
+        r#"
+            SELECT object_key
+            FROM tracks
+            WHERE id = $1
+        "#,
+        id
+    )
+    .fetch_optional(&mut *tx)
+    .await?
+    .ok_or(AppError::NotFound)?;
+
+    // Generate presigned URL for the file
+    let presigned_url = state.s3.get_file(&object_key).await.map_err(|e| {
+        tracing::error!("Failed to generate presigned URL for track {}: {}", id, e);
+        AppError::Storage(format!("Failed to generate download URL: {}", e))
+    })?;
+
+    // Return JSON with the presigned URL
+    let response = serde_json::json!({
+        "track_id": id,
+        "url": presigned_url,
+        "expires_in": "2 days"
+    });
+    tx.commit().await?;
+    Ok(Json(response))
+}
+
 async fn delete_track(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TrackResponse>> {
+    let mut tx = state.db.begin().await?;
     let track = sqlx::query_as!(
         Track,
         r#"
@@ -265,10 +304,16 @@ async fn delete_track(
         "#,
         id
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
-
+    tx.commit().await?;
+    // Delete the file from S3
+    state
+        .s3
+        .delete_file(&track.object_key)
+        .await
+        .map_err(|e| AppError::Storage(format!("Failed to delete from storage: {}", e)))?;
     sqlx::query!("DELETE FROM tracks WHERE id = $1", id)
         .execute(&state.db)
         .await?;
