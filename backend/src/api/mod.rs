@@ -10,7 +10,10 @@ use std::sync::Arc;
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health_check))
-        .nest("/tracks", tracks::router().layer(DefaultBodyLimit::disable()))
+        .nest(
+            "/tracks",
+            tracks::router().layer(DefaultBodyLimit::max(state.settings.max_file_size)),
+        )
         .with_state(state)
 }
 
