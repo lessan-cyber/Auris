@@ -7,13 +7,12 @@ use axum::{
     Json, Router,
     extract::{Multipart, Query, State},
     http::StatusCode,
-    response::IntoResponse,
     routing::{delete, get, post},
 };
 use serde::Deserialize;
-use serde::Serialize;
+
 use serde_json;
-use std::io;
+
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -304,13 +303,13 @@ async fn delete_track(
     .ok_or(AppError::NotFound)?;
     // Delete S3 object after DB delete succeeds
     // If this fails, we log it but the track is already deleted from DB
-    state.s3.delete_file(&track.object_key).await.map_err(|e| {
-        tracing::error!(
+    if let Err(e) = state.s3.delete_file(&track.object_key).await {
+        tracing::warn!(
             "Failed to delete S3 object {} after DB delete: {}",
             track.object_key,
             e
         );
-        AppError::Storage(format!("Failed to delete from storage: {}", e))
-    })?;
+        // Track is deleted from DB; S3 cleanup can be handled separately
+    }
     Ok(Json(track.into()))
 }
