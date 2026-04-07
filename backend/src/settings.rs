@@ -7,7 +7,7 @@ use std::net::SocketAddr;
 pub struct Settings {
     /// Database connection string
     pub database_url: String,
-    /// Server address (default: 127.0.0.1:8000)
+    /// Server address (default: 0.0.0.0:8000)
     pub server_addr: SocketAddr,
     /// Rustfs/S3 configuration
     pub s3_endpoint: String,
