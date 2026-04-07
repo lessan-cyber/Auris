@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use uuid::Uuid;
 
-///represents a song/track in the database
+/// Represents a song/track in the database.
 /// Maps to the `tracks` table in the database.
 #[derive(Debug, Clone, FromRow, Serialize, Deserialize)]
 pub struct Track {
@@ -34,7 +34,7 @@ pub struct RegisterTrackRequest {
     pub album: Option<String>,
 }
 
-/// Reponse for registering a new track.
+/// Response for registering a new track.
 #[derive(Debug, Serialize)]
 pub struct TrackResponse {
     pub id: Uuid,
