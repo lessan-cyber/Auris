@@ -1,10 +1,6 @@
 use crate::AppState;
 pub mod tracks;
-use axum::{
-    Router,
-    extract::DefaultBodyLimit,
-    routing::{delete, get, post},
-};
+use axum::{Router, extract::DefaultBodyLimit, routing::get};
 use std::sync::Arc;
 
 pub fn create_router(state: Arc<AppState>) -> Router {
