@@ -23,6 +23,8 @@ pub struct HashRecord {
 
 impl HashRecord {
     /// Convert to database-compatible types
+    /// Note: Hash values > i32::MAX will wrap to negative values in the database.
+    /// Use stored_hash as u32 when reading back to recover the original value.
     pub fn to_db_record(self, track_id: Uuid) -> (i32, Uuid, i32) {
         (self.hash as i32, track_id, self.offset_ms as i32)
     }
