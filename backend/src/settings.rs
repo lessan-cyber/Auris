@@ -23,7 +23,7 @@ impl Settings {
     pub fn from_env() -> Result<Self> {
         dotenvy::dotenv().ok();
         let bind_addr = std::env::var("BIND_ADDR")
-            .unwrap_or_else(|_| "127.0.0.1:8000".to_string())
+            .unwrap_or_else(|_| "0.0.0.0:8000".to_string())
             .parse()
             .context("Invalid bind addr")?;
         let max_file_size = std::env::var("MAX_FILE_SIZE")

@@ -4,8 +4,11 @@ mod settings;
 use std::sync::Arc;
 mod api;
 mod errors;
+mod worker;
 use anyhow::Result;
+use worker::mode::Mode;
 //use aws_sdk_s3::Config;
+use clap::Parser;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
 
@@ -17,6 +20,7 @@ pub struct AppState {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let mode = Mode::parse();
     // Setup logging
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::INFO)
@@ -43,11 +47,18 @@ async fn main() -> Result<()> {
         s3: s3_client,
         settings: settings.clone(),
     });
-    // -- router --
-    let app = api::create_router(state);
-    // -- Serve --
-    let listener = tokio::net::TcpListener::bind(&settings.server_addr).await?;
-    info!("Server listening on {}", settings.server_addr);
-    axum::serve(listener, app).await?;
+
+    match mode.execution_mode.as_str() {
+        "worker" => {
+            // Run only the worker
+            worker::run_worker(state).await;
+        }
+        _ => {
+            // Run API server (existing code)
+            let app = api::create_router(state);
+            let listener = tokio::net::TcpListener::bind(&settings.server_addr).await?;
+            axum::serve(listener, app).await?;
+        }
+    }
     Ok(())
 }
