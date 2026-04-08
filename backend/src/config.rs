@@ -130,4 +130,16 @@ impl S3Client {
 
         Ok(presigned_url)
     }
+    pub async fn download_file(&self, key: &str) -> Result<Vec<u8>> {
+        let resp = self
+            .client
+            .get_object()
+            .bucket(&self.bucket_name)
+            .key(key)
+            .send()
+            .await?;
+
+        let data = resp.body.collect().await?.to_vec();
+        Ok(data)
+    }
 }
