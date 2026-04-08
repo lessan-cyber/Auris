@@ -7,13 +7,12 @@ use axum::{
     Json, Router,
     extract::{Multipart, Query, State},
     http::StatusCode,
-    response::IntoResponse,
     routing::{delete, get, post},
 };
 use serde::Deserialize;
-use serde::Serialize;
+
 use serde_json;
-use std::io;
+
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -115,15 +114,39 @@ async fn create_track(
         AppError::Validation("Audio file is required".to_string())
     })?;
 
+    // Validate file type (extension and MIME type)
+    let ext = file_name
+        .as_ref()
+        .and_then(|f: &String| f.rsplit('.').next())
+        .map(|s| s.to_lowercase())
+        .unwrap_or_else(|| "bin".to_string());
+
+    let allowed_extensions = ["mp3", "wav", "flac", "ogg", "m4a", "aac"];
+    let is_valid_ext = allowed_extensions.contains(&ext.as_str());
+
+    let is_valid_mime = content_type.as_ref().map_or(false, |mime| {
+        let mime = mime.to_lowercase();
+        mime.starts_with("audio/") || 
+        mime == "application/ogg" || 
+        mime == "video/mp4" // M4A is technically a subset of MP4 container
+    });
+
+    if !is_valid_ext && !is_valid_mime {
+        tracing::error!(
+            "Validation failed: Unsupported file type. ext={:?}, mime={:?}",
+            ext,
+            content_type
+        );
+        return Err(AppError::Validation(
+            format!("Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A).", ext)
+        ));
+    }
+
     // Generate IDs
     let track_id = Uuid::new_v4();
     let job_id = Uuid::new_v4();
 
     // Create object key for S3 ( organized by date for easier management)
-    let ext = file_name
-        .as_ref()
-        .and_then(|f: &String| f.rsplit('.').next())
-        .unwrap_or("bin");
     let object_key = format!("tracks/{}/{}.{}", track_id, "original", ext);
     // Debug file data before upload
     tracing::info!(
@@ -145,7 +168,7 @@ async fn create_track(
         track_id,
         title,
         artist,
-        0, // duration unknown until we process it
+        0.0, // duration unknown until we process it
         object_key,
         TrackStatus::Pending as TrackStatus
     )
@@ -304,13 +327,13 @@ async fn delete_track(
     .ok_or(AppError::NotFound)?;
     // Delete S3 object after DB delete succeeds
     // If this fails, we log it but the track is already deleted from DB
-    state.s3.delete_file(&track.object_key).await.map_err(|e| {
-        tracing::error!(
+    if let Err(e) = state.s3.delete_file(&track.object_key).await {
+        tracing::warn!(
             "Failed to delete S3 object {} after DB delete: {}",
             track.object_key,
             e
         );
-        AppError::Storage(format!("Failed to delete from storage: {}", e))
-    })?;
+        // Track is deleted from DB; S3 cleanup can be handled separately
+    }
     Ok(Json(track.into()))
 }

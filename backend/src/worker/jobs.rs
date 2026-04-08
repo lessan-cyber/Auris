@@ -24,6 +24,7 @@ pub async fn fetch_next_job(pool: &PgPool) -> Result<Option<FingerprintJob>> {
             attempts, 
             error_message, 
             created_at, 
+            updated_at,
             completed_at
         "#
     )
@@ -31,6 +32,28 @@ pub async fn fetch_next_job(pool: &PgPool) -> Result<Option<FingerprintJob>> {
     .await?;
     
     Ok(job)
+}
+
+/// Resets stale jobs that have been in 'processing' state for too long.
+/// This handles cases where a worker might have crashed without updating the job status.
+pub async fn reset_stale_jobs(pool: &PgPool) -> Result<()> {
+    let result = sqlx::query!(
+        r#"
+        UPDATE fingerprint_jobs
+        SET status = 'queued', error_message = 'Reset after timeout'
+        WHERE status = 'processing'
+        AND updated_at < NOW() - INTERVAL '10 minutes'
+        AND attempts < 3
+        "#
+    )
+    .execute(pool)
+    .await?;
+
+    if result.rows_affected() > 0 {
+        tracing::info!("Reset {} stale jobs back to queued", result.rows_affected());
+    }
+
+    Ok(())
 }
 
 /// Mark job as completed

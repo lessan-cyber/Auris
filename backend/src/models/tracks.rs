@@ -10,7 +10,7 @@ pub struct Track {
     pub id: Uuid,
     pub title: String,
     pub artist: Option<String>,
-    pub duration_secs: i32,
+    pub duration_secs: f64,
     pub object_key: String,
     pub status: TrackStatus,
     pub created_at: DateTime<Utc>,
@@ -41,7 +41,7 @@ pub struct TrackResponse {
     pub title: String,
     pub artist: Option<String>,
     pub status: String,
-    pub duration_secs: i32,
+    pub duration_secs: f64,
     pub created_at: DateTime<Utc>,
 }
 

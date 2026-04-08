@@ -4,9 +4,10 @@ mod settings;
 use std::sync::Arc;
 mod api;
 mod errors;
+mod fingerprint;
 mod worker;
 use anyhow::Result;
-use worker::mode::Mode;
+use worker::mode::{ExecutionMode, Mode};
 //use aws_sdk_s3::Config;
 use clap::Parser;
 use tracing::{Level, info};
@@ -48,12 +49,12 @@ async fn main() -> Result<()> {
         settings: settings.clone(),
     });
 
-    match mode.execution_mode.as_str() {
-        "worker" => {
+    match mode.execution_mode {
+        ExecutionMode::Worker => {
             // Run only the worker
             worker::run_worker(state).await;
         }
-        _ => {
+        ExecutionMode::Api => {
             // Run API server (existing code)
             let app = api::create_router(state);
             let listener = tokio::net::TcpListener::bind(&settings.server_addr).await?;
