@@ -4,6 +4,7 @@ mod settings;
 use std::sync::Arc;
 mod api;
 mod errors;
+mod fingerprint;
 mod worker;
 use anyhow::Result;
 use worker::mode::{ExecutionMode, Mode};
