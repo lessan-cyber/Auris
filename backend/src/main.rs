@@ -6,6 +6,7 @@ mod api;
 mod errors;
 mod fingerprint;
 mod worker;
+mod utils;
 use anyhow::Result;
 use worker::mode::{ExecutionMode, Mode};
 //use aws_sdk_s3::Config;
