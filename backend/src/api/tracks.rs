@@ -126,20 +126,19 @@ async fn create_track(
 
     let is_valid_mime = content_type.as_ref().map_or(false, |mime| {
         let mime = mime.to_lowercase();
-        mime.starts_with("audio/") || 
-        mime == "application/ogg" || 
-        mime == "video/mp4" // M4A is technically a subset of MP4 container
+        mime.starts_with("audio/") || mime == "application/ogg" || mime == "video/mp4" // M4A is technically a subset of MP4 container
     });
 
-    if !is_valid_ext && !is_valid_mime {
+    if !is_valid_ext || !is_valid_mime {
         tracing::error!(
             "Validation failed: Unsupported file type. ext={:?}, mime={:?}",
             ext,
             content_type
         );
-        return Err(AppError::Validation(
-            format!("Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A).", ext)
-        ));
+        return Err(AppError::Validation(format!(
+            "Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A).",
+            ext
+        )));
     }
 
     // Generate IDs
@@ -311,29 +310,42 @@ async fn delete_track(
     State(state): State<Arc<AppState>>,
     Path(id): Path<Uuid>,
 ) -> Result<Json<TrackResponse>> {
-    // Fetch and delete in one transaction
+    let mut tx = state.db.begin().await?;
+
+    // 1. Fetch track info to get the object_key
     let track = sqlx::query_as!(
         Track,
         r#"
-            DELETE FROM tracks
+            SELECT id, title, artist, duration_secs, object_key,
+                   status as "status: TrackStatus", created_at, updated_at
+            FROM tracks
             WHERE id = $1
-            RETURNING id, title, artist, duration_secs, object_key,
-                      status as "status: TrackStatus", created_at, updated_at
+            FOR UPDATE
         "#,
         id
     )
-    .fetch_optional(&state.db)
+    .fetch_optional(&mut *tx)
     .await?
     .ok_or(AppError::NotFound)?;
-    // Delete S3 object after DB delete succeeds
-    // If this fails, we log it but the track is already deleted from DB
-    if let Err(e) = state.s3.delete_file(&track.object_key).await {
-        tracing::warn!(
-            "Failed to delete S3 object {} after DB delete: {}",
-            track.object_key,
-            e
-        );
-        // Track is deleted from DB; S3 cleanup can be handled separately
-    }
+
+    // 2. Delete S3 object first
+    state.s3.delete_file(&track.object_key).await.map_err(|e| {
+        tracing::error!("Failed to delete S3 object {}: {}", track.object_key, e);
+        AppError::Storage(format!("Failed to delete file from storage: {}", e))
+    })?;
+
+    // 3. Delete from database
+    sqlx::query!(
+        r#"
+            DELETE FROM tracks
+            WHERE id = $1
+        "#,
+        id
+    )
+    .execute(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
     Ok(Json(track.into()))
 }

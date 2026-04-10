@@ -5,6 +5,7 @@ use axum::{
 };
 use serde_json::json;
 use thiserror::Error;
+use tokio::task::JoinError;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -20,6 +21,10 @@ pub enum AppError {
     BadRequest(String),
     #[error("Internal server error: {0}")]
     Internal(String),
+    #[error("Task join error: {0}")]
+    JoinError(#[from] JoinError),
+    #[error("Anyhow error: {0}")]
+    AnyhowError(#[from] anyhow::Error),
 }
 
 impl IntoResponse for AppError {
@@ -44,6 +49,20 @@ impl IntoResponse for AppError {
             AppError::BadRequest(e) => (StatusCode::BAD_REQUEST, e.clone()),
             AppError::Internal(e) => {
                 tracing::error!("Internal error: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
+            AppError::JoinError(e) => {
+                tracing::error!("Task join error: {}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
+            }
+            AppError::AnyhowError(e) => {
+                tracing::error!("Anyhow error: {}", e);
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "Internal server error".to_string(),

@@ -1,11 +1,14 @@
-use rayon::prelude::*;
 use super::spectrogram::{Spectrogram, SpectrogramConfig, bin_to_freq, frame_to_ms};
+use rayon::prelude::*;
+use std::collections::VecDeque;
 
 /// Represents a peak in time-frequency space
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Peak {
-    pub time_ms: u32,
-    pub freq_hz: u16,
+    pub frame_idx: u32, // raw frame index
+    pub bin_idx: u16,   // raw FFT bin index
+    pub time_ms: u32,   // derived in milliseconds, used for hashing
+    pub freq_hz: u16,   // derived in hertz, used for hashing
     pub magnitude: f32,
 }
 
@@ -18,72 +21,109 @@ pub fn extract_peaks(
 ) -> Vec<Peak> {
     let num_frames = spectrogram.num_frames();
     let num_bins = spectrogram.num_freq_bins();
+    let t_win = 5;
+    let f_win = 10;
 
-    // Neighborhood size for local maxima detection
-    let time_neighborhood = 5; // +/- 5 frames
-    let freq_neighborhood = 10; // +/- 10 bins
+    // --- Pass 1: sliding max over frequency axis ---
+    // freq_max[t][f] = max of spectrogram[t][f-f_win..f+f_win]
+    let mut freq_max = vec![0.0f32; num_frames * num_bins];
+    freq_max
+        .par_chunks_exact_mut(num_bins)
+        .enumerate()
+        .for_each(|(t, out_row)| {
+            let start = t * num_bins;
+            let row = &spectrogram.data[start..start + num_bins];
+            sliding_max_centered(row, f_win, out_row);
+        });
 
-    // Parallelize the frame processing loop
+    // --- Pass 2: sliding max over time axis, applied to freq_max ---
+    // window_max[t][f] = max of freq_max[t-t_win..t+t_win][f]
+    let mut window_max = vec![0.0f32; num_frames * num_bins];
+    let mut col_in = vec![0.0f32; num_frames];
+    let mut col_out = vec![0.0f32; num_frames];
+    for f in 0..num_bins {
+        for t in 0..num_frames {
+            col_in[t] = freq_max[t * num_bins + f];
+        }
+        sliding_max_centered(&col_in, t_win, &mut col_out);
+        for t in 0..num_frames {
+            window_max[t * num_bins + f] = col_out[t];
+        }
+    }
+
+    // --- Pass 3: a cell is a peak iff it equals the 2D window max ---
+    // Parallelize this pass since each frame is independent
     let mut peaks: Vec<Peak> = (0..num_frames)
         .into_par_iter()
         .flat_map(|t| {
-            let mut local_peaks = Vec::new();
-            // Skip DC and Nyquist edge cases
+            let mut local = Vec::new();
+            // Skip edges to avoid DC and Nyquist artifacts
             for f in 10..(num_bins.saturating_sub(10)) {
                 let mag = spectrogram.at(t, f);
-
                 if mag < threshold {
                     continue;
                 }
-
-                if is_local_maximum(spectrogram, t, f, time_neighborhood, freq_neighborhood, mag) {
-                    local_peaks.push(Peak {
+                // Peak condition: this cell IS the neighborhood maximum
+                if mag >= window_max[t * num_bins + f] {
+                    local.push(Peak {
+                        frame_idx: t as u32,
+                        bin_idx: f as u16,
                         time_ms: frame_to_ms(t, spectrogram.hop_size, spectrogram.sample_rate),
-                        freq_hz: bin_to_freq(f, spectrogram.sample_rate, spectrogram.window_size) as u16,
+                        freq_hz: bin_to_freq(f, spectrogram.sample_rate, spectrogram.window_size)
+                            as u16,
                         magnitude: mag,
                     });
                 }
             }
-            local_peaks
+            local
         })
         .collect();
 
-    // Density filtering (ensure uniform coverage)
     filter_by_density(&mut peaks, 50);
-
     peaks
 }
 
-#[inline(always)]
-fn is_local_maximum(
-    spectrogram: &Spectrogram,
-    t: usize,
-    f: usize,
-    t_window: usize,
-    f_window: usize,
-    val: f32,
-) -> bool {
-    let t_start = t.saturating_sub(t_window);
-    let t_end = (t + t_window + 1).min(spectrogram.num_frames());
-    let f_start = f.saturating_sub(f_window);
-    let f_end = (f + f_window + 1).min(spectrogram.num_freq_bins());
-
-    for check_t in t_start..t_end {
-        for check_f in f_start..f_end {
-            if check_t == t && check_f == f {
-                continue;
-            }
-            if spectrogram.at(check_t, check_f) >= val {
-                return false;
-            }
-        }
+#[inline]
+fn sliding_max_centered(input: &[f32], radius: usize, output: &mut [f32]) {
+    debug_assert_eq!(input.len(), output.len());
+    let n = input.len();
+    if n == 0 {
+        return;
     }
-    true
+
+    let mut deque: VecDeque<usize> = VecDeque::with_capacity((2 * radius + 1).min(n));
+    let mut right = 0usize;
+
+    for i in 0..n {
+        let start = i.saturating_sub(radius);
+        let end = (i + radius + 1).min(n);
+
+        while right < end {
+            let v = input[right];
+            while let Some(&last_idx) = deque.back() {
+                if input[last_idx] <= v {
+                    deque.pop_back();
+                } else {
+                    break;
+                }
+            }
+            deque.push_back(right);
+            right += 1;
+        }
+
+        while deque.front().is_some_and(|&idx| idx < start) {
+            deque.pop_front();
+        }
+
+        output[i] = input[*deque.front().expect("deque should never be empty")];
+    }
 }
 
 /// Ensure roughly uniform density of peaks over time
 fn filter_by_density(peaks: &mut Vec<Peak>, max_per_window: usize) {
-    if peaks.is_empty() { return; }
+    if peaks.is_empty() {
+        return;
+    }
 
     // Sort by time
     peaks.sort_by_key(|p| p.time_ms);
@@ -95,7 +135,7 @@ fn filter_by_density(peaks: &mut Vec<Peak>, max_per_window: usize) {
     while i < peaks.len() {
         let window_start_ms = peaks[i].time_ms;
         let mut j = i;
-        
+
         // Find all peaks in this window
         while j < peaks.len() && peaks[j].time_ms < window_start_ms + window_size_ms {
             j += 1;
@@ -116,6 +156,7 @@ fn filter_by_density(peaks: &mut Vec<Peak>, max_per_window: usize) {
     *peaks = filtered;
 }
 
+// Convert peaks to (time_ms, freq_hz) for hashing
 pub fn peaks_to_constellation(peaks: Vec<Peak>) -> Vec<(u32, u16)> {
     peaks.into_iter().map(|p| (p.time_ms, p.freq_hz)).collect()
 }
