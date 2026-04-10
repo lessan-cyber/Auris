@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tracks SET duration_secs = $1, status = 'ready' WHERE id = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Float8",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "05799f90b99552b02e107aeaf8408d1098cdd8e51acfceb43f8f4ba381622430"
+}

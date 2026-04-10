@@ -1,0 +1,76 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT id, title, artist, duration_secs, object_key,\n                   status as \"status: TrackStatus\", created_at, updated_at\n            FROM tracks\n            WHERE id = $1\n            FOR UPDATE\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "artist",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "duration_secs",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "object_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "status: TrackStatus",
+        "type_info": {
+          "Custom": {
+            "name": "track_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "fingerprinting",
+                "ready",
+                "error"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "55594d1e77c0c5c17e8bab7ca6daebcbfb782346c89d4b18d4cf4ecc9d3c85ef"
+}

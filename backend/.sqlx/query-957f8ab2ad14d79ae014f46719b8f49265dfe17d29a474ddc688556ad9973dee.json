@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO fingerprint_jobs (id, track_id, status)\n        VALUES ($1, $2, $3)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        {
+          "Custom": {
+            "name": "job_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "processing",
+                "completed",
+                "failed"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "957f8ab2ad14d79ae014f46719b8f49265dfe17d29a474ddc688556ad9973dee"
+}

@@ -1,0 +1,93 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        RETURNING id, title, artist, duration_secs, object_key,\n                  status as \"status: TrackStatus\", created_at, updated_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "artist",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "duration_secs",
+        "type_info": "Float8"
+      },
+      {
+        "ordinal": 4,
+        "name": "object_key",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "status: TrackStatus",
+        "type_info": {
+          "Custom": {
+            "name": "track_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "fingerprinting",
+                "ready",
+                "error"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Float8",
+        "Text",
+        {
+          "Custom": {
+            "name": "track_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "fingerprinting",
+                "ready",
+                "error"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "e4fd9118c8f918aa95ae4b2efcaaa6e2af0397727fb56e0fc6ef353ac73257b6"
+}
