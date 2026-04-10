@@ -2,6 +2,7 @@ use crate::AppState;
 use crate::errors::{AppError, Result};
 use crate::models::jobs::JobStatus;
 use crate::models::tracks::{Track, TrackResponse, TrackStatus};
+use crate::utils::file_validation::validate_audio_file;
 use axum::extract::Path;
 use axum::{
     Json, Router,
@@ -115,31 +116,7 @@ async fn create_track(
     })?;
 
     // Validate file type (extension and MIME type)
-    let ext = file_name
-        .as_ref()
-        .and_then(|f: &String| f.rsplit('.').next())
-        .map(|s| s.to_lowercase())
-        .unwrap_or_else(|| "bin".to_string());
-
-    let allowed_extensions = ["mp3", "wav", "flac", "ogg", "m4a", "aac"];
-    let is_valid_ext = allowed_extensions.contains(&ext.as_str());
-
-    let is_valid_mime = content_type.as_ref().map_or(false, |mime| {
-        let mime = mime.to_lowercase();
-        mime.starts_with("audio/") || mime == "application/ogg" || mime == "video/mp4" // M4A is technically a subset of MP4 container
-    });
-
-    if !is_valid_ext || !is_valid_mime {
-        tracing::error!(
-            "Validation failed: Unsupported file type. ext={:?}, mime={:?}",
-            ext,
-            content_type
-        );
-        return Err(AppError::Validation(format!(
-            "Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A).",
-            ext
-        )));
-    }
+    let ext = validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
 
     // Generate IDs
     let track_id = Uuid::new_v4();
