@@ -8,6 +8,7 @@ use crate::{
         peaks_to_constellation,
     },
     models::tracks::TrackResponse,
+    utils::file_validation::validate_audio_file,
 };
 use axum::{
     Router,
@@ -42,12 +43,17 @@ async fn identify_track(
     let start_time = std::time::Instant::now();
     // Extract audio file from multipart
     let mut audio_data = None;
+    let mut file_name = None;
+    let mut content_type = None;
+    
     while let Some(field) = multipart
         .next_field()
         .await
         .map_err(|e| AppError::BadRequest(format!("Invalid multipart: {}", e)))?
     {
         if field.name() == Some("file") {
+            file_name = field.file_name().map(String::from);
+            content_type = field.content_type().map(String::from);
             audio_data = Some(
                 field
                     .bytes()
@@ -57,8 +63,12 @@ async fn identify_track(
             break;
         }
     }
+    
     let audio_data =
         audio_data.ok_or_else(|| AppError::Validation("Audio file required".to_string()))?;
+    
+    // Validate file type (extension and MIME type)
+    validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
     // Process sample (same pipeline as ingestion, but we don't store)
     let (sample_hashes, sample_duration) = tokio::task::spawn_blocking(move || {
         let (samples, duration) = decode_audio(audio_data.to_vec(), 8000)?;
