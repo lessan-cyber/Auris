@@ -51,12 +51,13 @@ async fn main() -> Result<()> {
     match mode.execution_mode {
         ExecutionMode::Worker => {
             // Run only the worker
-            worker::workflow::run_worker(state).await;
+            worker::workflow::run_worker(state).await?;
         }
         ExecutionMode::Api => {
             // Run API server (existing code)
             let app = api::create_router(state);
             let listener = tokio::net::TcpListener::bind(&settings.server_addr).await?;
+            info!("Server up and running at {}", &settings.server_addr);
             axum::serve(listener, app).await?;
         }
     }
