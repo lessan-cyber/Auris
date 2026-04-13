@@ -84,10 +84,10 @@ pub fn unpack_hash(hash: u32) -> (u32, u32, u32) {
 pub fn hashes_to_db_records(
     hashes: &[CombinatorialHash],
     track_id: uuid::Uuid,
-) -> Vec<(i32, uuid::Uuid, i32)> {
+) -> Vec<(i64, uuid::Uuid, i32)> {
     hashes
         .iter()
-        .map(|h| (h.hash as i32, track_id, h.offset_ms as i32))
+        .map(|h| (h.hash as i64, track_id, h.offset_ms as i32))
         .collect()
 }
 
