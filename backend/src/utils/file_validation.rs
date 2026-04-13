@@ -40,7 +40,7 @@ pub fn validate_audio_file(
             content_type
         );
         return Err(AppError::Validation(format!(
-            "Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A).",
+            "Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A AAC).",
             ext
         )));
     }
