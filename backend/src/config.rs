@@ -141,15 +141,17 @@ impl S3Client {
             .send()
             .await?;
 
-        // Check content length before downloading to avoid OOM
-        if let Some(content_length) = resp.content_length() {
-            if content_length as usize > self.max_file_size {
-                return Err(anyhow::anyhow!(
-                    "File too large: {} bytes (max: {})",
-                    content_length,
-                    self.max_file_size
-                ));
-            }
+        // Fail closed if content length is unknown to prevent OOM
+        let content_length = resp.content_length().ok_or_else(|| {
+            anyhow::anyhow!("Cannot download file: content length unknown (potential OOM risk)")
+        })?;
+
+        if content_length as usize > self.max_file_size {
+            return Err(anyhow::anyhow!(
+                "File too large: {} bytes (max: {})",
+                content_length,
+                self.max_file_size
+            ));
         }
 
         let data = resp.body.collect().await?.to_vec();
