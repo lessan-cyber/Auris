@@ -37,7 +37,6 @@ async fn create_track(
     let mut file_name: Option<String> = None;
     let mut content_type: Option<String> = None;
 
-    // Parse multipart form
     tracing::info!("Starting multipart form parsing");
     while let Some(field) = multipart.next_field().await.map_err(|e| {
         tracing::error!("Failed to get next multipart field: {}", e);
@@ -118,13 +117,11 @@ async fn create_track(
     // Validate file type (extension and MIME type)
     let ext = validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
 
-    // Generate IDs
     let track_id = Uuid::new_v4();
     let job_id = Uuid::new_v4();
 
-    // Create object key for S3 ( organized by date for easier management)
     let object_key = format!("tracks/{}/{}.{}", track_id, "original", ext);
-    // Debug file data before upload
+
     tracing::info!(
         "Preparing to upload file: key={}, size={} bytes, extension={}",
         object_key,
@@ -137,7 +134,7 @@ async fn create_track(
         Track,
         r#"
         INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)
-        VALUES ($1, $2, $3, $4, $5, $6)
+        VALUES ($1, $2, $3, $4, $5, 'pending')
         RETURNING id, title, artist, duration_secs, object_key,
                   status as "status: TrackStatus", created_at, updated_at
         "#,
@@ -145,13 +142,11 @@ async fn create_track(
         title,
         artist,
         0.0, // duration unknown until we process it
-        object_key,
-        TrackStatus::Pending as TrackStatus
+        object_key
     )
     .fetch_one(&mut *tx)
     .await?;
 
-    // Create fingerprint job (queued) - use the actual track.id from database
     sqlx::query!(
         r#"
         INSERT INTO fingerprint_jobs (id, track_id, status)
@@ -166,18 +161,15 @@ async fn create_track(
 
     tracing::info!(
         "Created track {} with job {} (status: pending)",
-        track.id, // Use the actual track ID
+        track.id,
         job_id
     );
 
-    // Upload to S3/MinIO
     state
         .s3
         .upload_file(&object_key, file_data.to_vec())
         .await
-        .map_err(|e|
-             // Transaction will be rolled back automatically when tx is dropped
-            AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
+        .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
 
     tx.commit().await?;
     tracing::info!("Successfully uploaded file to S3");
@@ -268,7 +260,6 @@ async fn get_track_url(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // Generate presigned URL for the file
     let presigned_url = state.s3.get_file(&object_key).await.map_err(|e| {
         tracing::error!("Failed to generate presigned URL for track {}: {}", id, e);
         AppError::Storage(format!("Failed to generate download URL: {}", e))
@@ -289,7 +280,6 @@ async fn delete_track(
 ) -> Result<Json<TrackResponse>> {
     let mut tx = state.db.begin().await?;
 
-    // 1. Fetch track info to get the object_key
     let track = sqlx::query_as!(
         Track,
         r#"
@@ -297,7 +287,6 @@ async fn delete_track(
                    status as "status: TrackStatus", created_at, updated_at
             FROM tracks
             WHERE id = $1
-            FOR UPDATE
         "#,
         id
     )
@@ -305,13 +294,11 @@ async fn delete_track(
     .await?
     .ok_or(AppError::NotFound)?;
 
-    // 2. Delete S3 object first
     state.s3.delete_file(&track.object_key).await.map_err(|e| {
         tracing::error!("Failed to delete S3 object {}: {}", track.object_key, e);
         AppError::Storage(format!("Failed to delete file from storage: {}", e))
     })?;
 
-    // 3. Delete from database
     sqlx::query!(
         r#"
             DELETE FROM tracks
