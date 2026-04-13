@@ -51,7 +51,10 @@ pub async fn find_matches(
     // create lookup map for sample hashes (hash -> offsets)
     let mut sample_offsets: HashMap<i64, Vec<u32>> = HashMap::new();
     for h in sample_hashes {
-        sample_offsets.entry(h.hash as i64).or_default().push(h.offset_ms);
+        sample_offsets
+            .entry(h.hash as i64)
+            .or_default()
+            .push(h.offset_ms);
     }
 
     let mut offset_votes: HashMap<(Uuid, i32), usize> = HashMap::new();

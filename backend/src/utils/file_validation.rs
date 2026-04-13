@@ -28,7 +28,7 @@ pub fn validate_audio_file(
     let is_valid_ext = allowed_extensions.contains(&ext.as_str());
 
     // Validate MIME type
-    let is_valid_mime = content_type.as_ref().map_or(false, |mime| {
+    let is_valid_mime = content_type.as_ref().is_some_and(|mime| {
         let mime = mime.to_lowercase();
         mime.starts_with("audio/") || mime == "application/ogg" || mime == "video/mp4" // M4A is technically a subset of MP4 container
     });

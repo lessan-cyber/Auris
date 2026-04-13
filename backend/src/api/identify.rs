@@ -45,7 +45,7 @@ async fn identify_track(
     let mut audio_data = None;
     let mut file_name = None;
     let mut content_type = None;
-    
+
     while let Some(field) = multipart
         .next_field()
         .await
@@ -63,10 +63,10 @@ async fn identify_track(
             break;
         }
     }
-    
+
     let audio_data =
         audio_data.ok_or_else(|| AppError::Validation("Audio file required".to_string()))?;
-    
+
     // Validate file type (extension and MIME type)
     validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
     // Process sample (same pipeline as ingestion, but we don't store)

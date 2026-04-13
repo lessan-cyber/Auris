@@ -69,7 +69,7 @@ pub fn extract_peaks(
                         time_ms: frame_to_ms(t, spectrogram.hop_size, spectrogram.sample_rate),
                         freq_hz: bin_to_freq(f, spectrogram.sample_rate, spectrogram.window_size)
                             as u16,
-                        magnitude: magnitude,
+                        magnitude,
                     });
                 }
             }
@@ -92,7 +92,7 @@ fn sliding_max_centered(input: &[f32], radius: usize, output: &mut [f32]) {
     let mut deque: VecDeque<usize> = VecDeque::with_capacity((2 * radius + 1).min(n));
     let mut right = 0usize;
 
-    for i in 0..n {
+    for (i, out_val) in output.iter_mut().enumerate().take(n) {
         let start = i.saturating_sub(radius);
         let end = (i + radius + 1).min(n);
 
@@ -113,7 +113,7 @@ fn sliding_max_centered(input: &[f32], radius: usize, output: &mut [f32]) {
             deque.pop_front();
         }
 
-        output[i] = input[*deque.front().expect("deque should never be empty")];
+        *out_val = input[*deque.front().expect("deque should never be empty")];
     }
 }
 
