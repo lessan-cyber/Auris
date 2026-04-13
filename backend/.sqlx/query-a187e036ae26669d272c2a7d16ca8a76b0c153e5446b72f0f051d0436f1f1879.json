@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE fingerprint_jobs\n        SET status = 'queued', error_message = 'Reset after timeout'\n        WHERE status = 'processing'\n        AND updated_at < NOW() - INTERVAL '10 minutes'\n        AND attempts < 3\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "a187e036ae26669d272c2a7d16ca8a76b0c153e5446b72f0f051d0436f1f1879"
+}

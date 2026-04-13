@@ -5,13 +5,13 @@ use std::sync::Arc;
 mod api;
 mod errors;
 mod fingerprint;
+mod utils;
 mod worker;
 use anyhow::Result;
-use worker::mode::{ExecutionMode, Mode};
-//use aws_sdk_s3::Config;
 use clap::Parser;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
+use worker::mode::{ExecutionMode, Mode};
 
 pub struct AppState {
     pub db: sqlx::PgPool,
@@ -40,7 +40,6 @@ async fn main() -> Result<()> {
     // connect to S3
     let s3_client = config::S3Client::new(&settings).await?;
     s3_client.list_buckets().await?;
-    //info!("S3 connection is alive");
 
     // setup app state
     let state = Arc::new(AppState {
@@ -52,7 +51,7 @@ async fn main() -> Result<()> {
     match mode.execution_mode {
         ExecutionMode::Worker => {
             // Run only the worker
-            worker::run_worker(state).await;
+            worker::workflow::run_worker(state).await;
         }
         ExecutionMode::Api => {
             // Run API server (existing code)

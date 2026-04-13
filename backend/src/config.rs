@@ -8,7 +8,7 @@ use sqlx::postgres::{PgPool, PgPoolOptions};
 use tracing::info;
 pub async fn create_pool(database_url: &str) -> Result<PgPool> {
     let pool = PgPoolOptions::new()
-        .max_connections(5)
+        .max_connections(100)
         .connect(database_url)
         .await?;
     Ok(pool)
@@ -23,6 +23,7 @@ pub async fn check_connection(pool: &PgPool) -> Result<()> {
 pub struct S3Client {
     pub client: Client,
     pub bucket_name: String,
+    pub max_file_size: usize,
 }
 
 impl S3Client {
@@ -49,6 +50,7 @@ impl S3Client {
         Ok(Self {
             client,
             bucket_name: settings.s3_bucket_name.clone(),
+            max_file_size: settings.max_file_size,
         })
     }
     pub async fn list_buckets(&self) -> Result<()> {
@@ -138,6 +140,17 @@ impl S3Client {
             .key(key)
             .send()
             .await?;
+
+        // Check content length before downloading to avoid OOM
+        if let Some(content_length) = resp.content_length() {
+            if content_length as usize > self.max_file_size {
+                return Err(anyhow::anyhow!(
+                    "File too large: {} bytes (max: {})",
+                    content_length,
+                    self.max_file_size
+                ));
+            }
+        }
 
         let data = resp.body.collect().await?.to_vec();
         Ok(data)

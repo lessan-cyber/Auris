@@ -1,0 +1,27 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tracks SET  status = $1 WHERE  id= $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        {
+          "Custom": {
+            "name": "track_status",
+            "kind": {
+              "Enum": [
+                "pending",
+                "fingerprinting",
+                "ready",
+                "error"
+              ]
+            }
+          }
+        },
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2c28a866d7cf50973e5db5eb963966b57535cc09491834233c092e7fc6f88508"
+}

@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        WITH stale_jobs AS (\n            UPDATE fingerprint_jobs\n            SET status = 'failed', error_message = 'Max retries exceeded after timeout'\n            WHERE status = 'processing'\n            AND updated_at < NOW() - INTERVAL '10 minutes'\n            AND attempts >= 3\n            RETURNING track_id\n        )\n        UPDATE tracks\n        SET status = 'error'\n        WHERE id IN (SELECT track_id FROM stale_jobs)\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "be3bc2f43607a04a09ca13335091133e757e12d0ca9442b76f5ea94c90f8f6d4"
+}

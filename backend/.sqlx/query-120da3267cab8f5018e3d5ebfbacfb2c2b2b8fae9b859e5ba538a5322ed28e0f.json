@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE fingerprint_jobs\n        SET status = 'processing', attempts = attempts + 1\n        WHERE id = (\n            SELECT id FROM fingerprint_jobs\n            WHERE status = 'queued'\n            ORDER BY created_at\n            LIMIT 1\n            FOR UPDATE SKIP LOCKED\n        )\n        RETURNING\n            id,\n            track_id,\n            status as \"status: JobStatus\",\n            attempts,\n            error_message,\n            created_at,\n            updated_at,\n            completed_at\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "track_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "status: JobStatus",
+        "type_info": {
+          "Custom": {
+            "name": "job_status",
+            "kind": {
+              "Enum": [
+                "queued",
+                "processing",
+                "completed",
+                "failed"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "attempts",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 4,
+        "name": "error_message",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "completed_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "120da3267cab8f5018e3d5ebfbacfb2c2b2b8fae9b859e5ba538a5322ed28e0f"
+}
