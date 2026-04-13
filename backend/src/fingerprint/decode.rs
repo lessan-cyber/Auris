@@ -109,6 +109,9 @@ fn decode_packets(
                 if needs_recreate {
                     current_spec = Some(spec.clone());
                     sample_buffer = Some(SampleBuffer::new(required_capacity as u64, *spec));
+                    // Update actual metadata when spec changes to avoid stale values
+                    actual_sample_rate = Some(spec.rate);
+                    actual_channels = Some(spec.channels);
                 }
 
                 if let Some(ref mut buf) = sample_buffer {
@@ -207,22 +210,131 @@ fn resample_to_target(samples: Vec<f32>, sample_rate: u32, target_sample_rate: u
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
-    fn test_decode_synthetic() {
-        // Create a simple sine wave as test data
-        // In real tests, include a small test MP3/WAV in repo
-        let sample_rate = 44100;
-        let duration_secs = 1;
-        let samples: Vec<f32> = (0..sample_rate * duration_secs)
-            .map(|i| {
-                let t = i as f32 / sample_rate as f32;
-                (2.0 * std::f32::consts::PI * 440.0 * t).sin() * 0.5
-            })
-            .collect();
+    fn test_decode_wav_file() {
+        // Embed test WAV file
+        let wav_data = include_bytes!("../../tests/fixtures/440hz_1sec_mono.wav").to_vec();
+        
+        // Decode it
+        let result = decode_audio(wav_data, 8000);
+        assert!(result.is_ok(), "Should decode WAV file successfully");
+        
+        let (samples, duration) = result.unwrap();
+        // Should be resampled to 8000 Hz, so 1 second = 8000 samples
+        assert_eq!(samples.len(), 8000, "Should have 8000 samples at 8kHz");
+        assert!((duration - 1.0).abs() < 0.01, "Duration should be ~1 second");
+    }
 
-        // Resample test
-        let resampled = resample_to_target(samples, 44100, 8000);
+    #[test]
+    fn test_decode_stereo_wav() {
+        // Embed stereo test WAV file
+        let wav_data = include_bytes!("../../tests/fixtures/440hz_1sec_stereo.wav").to_vec();
+        
+        // Decode and verify it converts to mono
+        let result = decode_audio(wav_data, 8000);
+        assert!(result.is_ok(), "Should decode stereo WAV file successfully");
+        
+        let (samples, duration) = result.unwrap();
+        assert_eq!(samples.len(), 8000, "Should have 8000 samples at 8kHz");
+        assert!((duration - 1.0).abs() < 0.01, "Duration should be ~1 second");
+    }
+
+    #[test]
+    fn test_decode_different_durations() {
+        // Test 0.5 second file
+        let wav_data = include_bytes!("../../tests/fixtures/880hz_0.5sec_mono.wav").to_vec();
+        let result = decode_audio(wav_data, 8000);
+        assert!(result.is_ok());
+        
+        let (samples, duration) = result.unwrap();
+        assert_eq!(samples.len(), 4000, "0.5 seconds at 8kHz should be 4000 samples");
+        assert!((duration - 0.5).abs() < 0.01, "Duration should be ~0.5 seconds");
+    }
+
+    #[test]
+    fn test_decode_silence() {
+        // Test with silence file
+        let wav_data = include_bytes!("../../tests/fixtures/silence_0.1sec.wav").to_vec();
+        
+        // Should decode successfully
+        let result = decode_audio(wav_data, 8000);
+        assert!(result.is_ok(), "Should decode silence successfully");
+        
+        let (samples, duration) = result.unwrap();
+        assert_eq!(samples.len(), 800, "0.1 seconds at 8kHz should be 800 samples");
+        assert!((duration - 0.1).abs() < 0.01);
+        
+        // All samples should be near zero (silence)
+        let max_abs = samples.iter().fold(0.0, |max, &val| val.abs().max(max));
+        assert!(max_abs < 0.0001, "Silence should produce near-zero samples");
+    }
+
+    #[test]
+    fn test_convert_to_mono() {
+        // Test stereo to mono conversion
+        let stereo_samples = vec![
+            1.0, 0.8,  // Frame 1: left=1.0, right=0.8
+            0.5, 0.3,  // Frame 2: left=0.5, right=0.3
+            -0.2, -0.4, // Frame 3: left=-0.2, right=-0.4
+        ];
+        
+        let mono = convert_to_mono(stereo_samples, symphonia::core::audio::Channels::FRONT_LEFT | symphonia::core::audio::Channels::FRONT_RIGHT);
+        
+        // Should average the channels
+        assert_eq!(mono.len(), 3);
+        assert!((mono[0] - 0.9).abs() < 0.001); // (1.0 + 0.8)/2 = 0.9
+        assert!((mono[1] - 0.4).abs() < 0.001); // (0.5 + 0.3)/2 = 0.4
+        assert!((mono[2] - (-0.3)).abs() < 0.001); // (-0.2 + -0.4)/2 = -0.3
+    }
+
+    #[test]
+    fn test_resample_down() {
+        // Test downsampling from 44100 to 8000
+        let samples: Vec<f32> = (0..44100).map(|i| {
+            let t = i as f32 / 44100.0;
+            (2.0 * std::f32::consts::PI * 440.0 * t).sin()
+        }).collect();
+        
+        let resampled = resample_to_target(samples.clone(), 44100, 8000);
         assert_eq!(resampled.len(), 8000);
+        
+        // Basic check that it's not just zeros
+        let max_val = resampled.iter().fold(0.0, |max, &val| val.abs().max(max));
+        assert!(max_val > 0.1, "Resampled signal should have significant amplitude");
+    }
+
+    #[test]
+    fn test_resample_up() {
+        // Test upsampling from 8000 to 16000
+        let samples: Vec<f32> = (0..8000).map(|i| {
+            let t = i as f32 / 8000.0;
+            (2.0 * std::f32::consts::PI * 220.0 * t).sin()
+        }).collect();
+        
+        let resampled = resample_to_target(samples, 8000, 16000);
+        assert_eq!(resampled.len(), 16000);
+    }
+
+    #[test]
+    fn test_resample_same_rate() {
+        // Test that resampling to same rate returns original samples
+        let samples: Vec<f32> = vec![0.1, 0.5, -0.3, 0.8, -0.9];
+        let resampled = resample_to_target(samples.clone(), 8000, 8000);
+        
+        // Should be identical when sample rates are the same
+        assert_eq!(resampled.len(), samples.len());
+        for (i, (&orig, &resampled)) in samples.iter().zip(resampled.iter()).enumerate() {
+            assert!((orig - resampled).abs() < 0.0001, "Sample {} should be unchanged", i);
+        }
+    }
+
+    #[test]
+    fn test_invalid_audio_format() {
+        // Test with invalid/empty data
+        let invalid_data = vec![0u8; 100]; // Too small to be valid WAV
+        let result = decode_audio(invalid_data, 8000);
+        assert!(result.is_err(), "Should fail with invalid audio data");
     }
 }
