@@ -49,20 +49,18 @@ pub async fn find_matches(
     .await?;
     // Build offset histogram per track in parallel
     // create lookup map for sample hashes (hash -> offsets)
-    let mut sample_offsets: HashMap<u32, Vec<u32>> = HashMap::new();
+    let mut sample_offsets: HashMap<i64, Vec<u32>> = HashMap::new();
     for h in sample_hashes {
-        sample_offsets.entry(h.hash).or_default().push(h.offset_ms);
+        sample_offsets.entry(h.hash as i64).or_default().push(h.offset_ms);
     }
 
     let mut offset_votes: HashMap<(Uuid, i32), usize> = HashMap::new();
     for db_match in matches {
-        if let Ok(hash) = u32::try_from(db_match.hash) {
-            if let Some(sample_hash_offsets) = sample_offsets.get(&hash) {
-                for sample_offset in sample_hash_offsets {
-                    let offset = db_match.offset_ms - (*sample_offset as i32);
-                    let key = (db_match.track_id, offset);
-                    *offset_votes.entry(key).or_default() += 1;
-                }
+        if let Some(sample_hash_offsets) = sample_offsets.get(&db_match.hash) {
+            for sample_offset in sample_hash_offsets {
+                let offset = db_match.offset_ms - (*sample_offset as i32);
+                let key = (db_match.track_id, offset);
+                *offset_votes.entry(key).or_default() += 1;
             }
         }
     }
@@ -72,7 +70,7 @@ pub async fn find_matches(
         if count >= threshold {
             let result = MatchResult {
                 track_id,
-                confidence: (count as f32) / (sample_hashes.len() as f32 * 0.1),
+                confidence: (count as f32) / (sample_hashes.len() as f32),
                 offset_ms: offset,
                 match_count: count,
                 total_hashes: sample_hashes.len(),
