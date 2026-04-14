@@ -12,13 +12,28 @@ use symphonia::core::probe::Hint;
 /// Decodes audio file to 8kHz mono f32 samples
 /// Returns (samples, duration_seconds)
 pub fn decode_audio(data: Vec<u8>, target_sample_rate: u32) -> Result<(Vec<f32>, f64)> {
+    let start = std::time::Instant::now();
     let mss = create_media_source(data);
     let mut format = probe_format(mss)?;
     let (track_id, decoder) = create_decoder(&mut format)?;
 
+    let decode_start = std::time::Instant::now();
     let (samples, sample_rate, channels) = decode_packets(&mut format, track_id, decoder)?;
+    let decode_elapsed = decode_start.elapsed();
+    
+    let mono_start = std::time::Instant::now();
     let mono_samples = convert_to_mono(samples, channels);
+    let mono_elapsed = mono_start.elapsed();
+    
+    let resample_start = std::time::Instant::now();
     let resampled = resample_to_target(mono_samples, sample_rate, target_sample_rate);
+    let resample_elapsed = resample_start.elapsed();
+
+    let total_elapsed = start.elapsed();
+    tracing::info!("      - Symphonia decode: {:?}", decode_elapsed);
+    tracing::info!("      - Mono conversion:  {:?}", mono_elapsed);
+    tracing::info!("      - Resampling:       {:?}", resample_elapsed);
+    tracing::info!("      - Total decode_audio: {:?}", total_elapsed);
 
     let duration_secs = resampled.len() as f64 / target_sample_rate as f64;
     Ok((resampled, duration_secs))
