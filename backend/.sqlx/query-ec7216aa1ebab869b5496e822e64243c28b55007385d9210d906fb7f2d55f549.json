@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)\n        VALUES ($1, $2, $3, $4, $5, $6)\n        RETURNING id, title, artist, duration_secs, object_key,\n                  status as \"status: TrackStatus\", created_at, updated_at\n        ",
+  "query": "\n        INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)\n        VALUES ($1, $2, $3, $4, $5, 'pending')\n        RETURNING id, title, artist, duration_secs, object_key,\n                  status as \"status: TrackStatus\", created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -62,20 +62,7 @@
         "Text",
         "Text",
         "Float8",
-        "Text",
-        {
-          "Custom": {
-            "name": "track_status",
-            "kind": {
-              "Enum": [
-                "pending",
-                "fingerprinting",
-                "ready",
-                "error"
-              ]
-            }
-          }
-        }
+        "Text"
       ]
     },
     "nullable": [
@@ -89,5 +76,5 @@
       false
     ]
   },
-  "hash": "e4fd9118c8f918aa95ae4b2efcaaa6e2af0397727fb56e0fc6ef353ac73257b6"
+  "hash": "ec7216aa1ebab869b5496e822e64243c28b55007385d9210d906fb7f2d55f549"
 }

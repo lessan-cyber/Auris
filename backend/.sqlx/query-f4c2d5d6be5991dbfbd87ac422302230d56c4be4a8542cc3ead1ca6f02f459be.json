@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT id, title, artist, duration_secs, object_key,\n                   status as \"status: TrackStatus\", created_at, updated_at\n            FROM tracks\n            WHERE id = $1\n            FOR UPDATE\n        ",
+  "query": "\n            SELECT id, title, artist, duration_secs, object_key,\n                   status as \"status: TrackStatus\", created_at, updated_at\n            FROM tracks\n            WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -72,5 +72,5 @@
       false
     ]
   },
-  "hash": "55594d1e77c0c5c17e8bab7ca6daebcbfb782346c89d4b18d4cf4ecc9d3c85ef"
+  "hash": "f4c2d5d6be5991dbfbd87ac422302230d56c4be4a8542cc3ead1ca6f02f459be"
 }

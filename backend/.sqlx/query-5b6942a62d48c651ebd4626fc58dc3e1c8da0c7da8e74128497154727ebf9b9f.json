@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE tracks SET  status = 'fingerprinting' WHERE  id= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5b6942a62d48c651ebd4626fc58dc3e1c8da0c7da8e74128497154727ebf9b9f"
+}

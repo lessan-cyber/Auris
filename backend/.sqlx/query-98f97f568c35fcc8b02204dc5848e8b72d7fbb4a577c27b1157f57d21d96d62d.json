@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        UPDATE fingerprint_jobs\n        SET status = 'processing',updated_at = NOW()\n\n        WHERE id = $1\n        ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "98f97f568c35fcc8b02204dc5848e8b72d7fbb4a577c27b1157f57d21d96d62d"
+}
