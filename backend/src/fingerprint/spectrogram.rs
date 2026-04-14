@@ -105,3 +105,55 @@ pub fn bin_to_freq(bin: usize, sample_rate: u32, window_size: usize) -> f32 {
 pub fn frame_to_ms(frame: usize, hop_size: usize, sample_rate: u32) -> u32 {
     (frame * hop_size * 1000 / sample_rate as usize) as u32
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_generate_spectrogram_sine_wave() {
+        let sample_rate = 8000;
+        let freq = 440.0;
+        let duration_secs = 1.0;
+        let num_samples = (sample_rate as f32 * duration_secs) as usize;
+        
+        // Generate a 440Hz sine wave
+        let samples: Vec<f32> = (0..num_samples)
+            .map(|i| {
+                let t = i as f32 / sample_rate as f32;
+                (2.0 * std::f32::consts::PI * freq * t).sin()
+            })
+            .collect();
+
+        let config = SpectrogramConfig {
+            sample_rate,
+            window_size: 1024,
+            overlap: 512,
+        };
+
+        let spectrogram = generate_spectrogram(&samples, config).expect("Spectrogram generation failed");
+        assert!(spectrogram.num_frames > 0);
+        assert_eq!(spectrogram.num_bins, 513);
+
+        // Find the bin with the most power in the first frame
+        let mut max_power = 0.0;
+        let mut max_bin = 0;
+        for bin in 0..spectrogram.num_bins {
+            let power = spectrogram.at(0, bin);
+            if power > max_power {
+                max_power = power;
+                max_bin = bin;
+            }
+        }
+
+        let detected_freq = bin_to_freq(max_bin, sample_rate, 1024);
+        // 440Hz at 8000Hz SR and 1024 FFT size: bin = 440 * 1024 / 8000 = 56.32 -> bin 56 or 57
+        assert!((detected_freq - freq).abs() < 10.0, "Detected frequency {} should be near {}Hz", detected_freq, freq);
+    }
+
+    #[test]
+    fn test_bin_to_freq() {
+        assert_eq!(bin_to_freq(0, 8000, 1024), 0.0);
+        assert_eq!(bin_to_freq(512, 8000, 1024), 4000.0);
+    }
+}
