@@ -116,28 +116,20 @@ fn decode_packets(
 
         match decoder.decode(&packet) {
             Ok(decoded) => {
-                // Initialize or update the sample rate/channels from the first valid packet
+                let spec = *decoded.spec();
+                
+                // Initialize metadata on first packet
                 if actual_sample_rate.is_none() {
-                    actual_sample_rate = Some(decoded.spec().rate);
-                    actual_channels = Some(decoded.spec().channels);
-                }
-
-                // Defensive check: Recreate sample buffer if spec changes or capacity is insufficient
-                let spec = decoded.spec();
-                let frames = decoded.frames();
-                let required_capacity = frames * spec.channels.count();
-
-                let needs_recreate = sample_buffer.as_ref().is_none_or(|_| {
-                    (current_spec.as_ref() != Some(spec))
-                        || sample_buffer.as_ref().unwrap().capacity() < required_capacity
-                });
-
-                if needs_recreate {
-                    current_spec = Some(*spec);
-                    sample_buffer = Some(SampleBuffer::new(required_capacity as u64, *spec));
-                    // Update actual metadata when spec changes to avoid stale values
                     actual_sample_rate = Some(spec.rate);
                     actual_channels = Some(spec.channels);
+                    current_spec = Some(spec);
+                    sample_buffer = Some(SampleBuffer::new(decoded.capacity() as u64, spec));
+                }
+
+                // Check if buffer needs recreation (rare)
+                if current_spec.as_ref() != Some(&spec) {
+                    current_spec = Some(spec);
+                    sample_buffer = Some(SampleBuffer::new(decoded.capacity() as u64, spec));
                 }
 
                 if let Some(ref mut buf) = sample_buffer {
