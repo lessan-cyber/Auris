@@ -84,7 +84,19 @@ fn decode_packets(
 ) -> Result<(Vec<f32>, u32, Channels)> {
     let mut sample_buffer: Option<SampleBuffer<f32>> = None;
     let mut current_spec: Option<SignalSpec> = None;
-    let mut samples: Vec<f32> = Vec::new();
+    
+    // Pre-allocate based on duration hint if available
+    let n_frames_hint = format.tracks().iter()
+        .find(|t| t.id == track_id)
+        .and_then(|t| t.codec_params.n_frames)
+        .unwrap_or(0);
+    
+    let n_channels_hint = format.tracks().iter()
+        .find(|t| t.id == track_id)
+        .and_then(|t| t.codec_params.channels.map(|c| c.count()))
+        .unwrap_or(2);
+
+    let mut samples: Vec<f32> = Vec::with_capacity((n_frames_hint * n_channels_hint) as usize);
 
     let mut actual_sample_rate = None;
     let mut actual_channels = None;
