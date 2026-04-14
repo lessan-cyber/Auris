@@ -148,7 +148,8 @@ pub async fn mark_processing(pool: &PgPool, job_id: Uuid) -> Result<()> {
     sqlx::query!(
         r#"
         UPDATE fingerprint_jobs
-        SET status = 'processing'
+        SET status = 'processing',updated_at = NOW()
+
         WHERE id = $1
         "#,
         job_id

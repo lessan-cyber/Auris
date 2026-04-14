@@ -13,7 +13,6 @@ pub struct Peak {
 }
 
 /// Extract constellation points (peaks) from spectrogram
-/// Uses Rayon for parallel local maximum detection.
 pub fn extract_peaks(
     spectrogram: &Spectrogram,
     _config: &SpectrogramConfig,
@@ -21,11 +20,12 @@ pub fn extract_peaks(
 ) -> Vec<Peak> {
     let num_frames = spectrogram.num_frames();
     let num_bins = spectrogram.num_freq_bins();
+    if num_frames == 0 || num_bins == 0 {
+        return Vec::new();
+    }
     let t_win = 5;
     let f_win = 10;
 
-    // --- Pass 1: sliding max over frequency axis ---
-    // freq_max[t][f] = max of spectrogram[t][f-f_win..f+f_win]
     let mut freq_max = vec![0.0f32; num_frames * num_bins];
     freq_max
         .par_chunks_exact_mut(num_bins)
@@ -36,8 +36,6 @@ pub fn extract_peaks(
             sliding_max_centered(row, f_win, out_row);
         });
 
-    // --- Pass 2: sliding max over time axis, applied to freq_max ---
-    // window_max[t][f] = max of freq_max[t-t_win..t+t_win][f]
     let mut window_max = vec![0.0f32; num_frames * num_bins];
     let mut col_in = vec![0.0f32; num_frames];
     let mut col_out = vec![0.0f32; num_frames];
@@ -51,27 +49,27 @@ pub fn extract_peaks(
         }
     }
 
-    // --- Pass 3: a cell is a peak iff it equals the 2D window max ---
-    // Parallelize this pass since each frame is independent
     let mut peaks: Vec<Peak> = (0..num_frames)
         .into_par_iter()
         .flat_map(|t| {
             let mut local = Vec::new();
-            // Skip edges to avoid DC and Nyquist artifacts
+
             for f in 10..(num_bins.saturating_sub(10)) {
-                let mag = spectrogram.at(t, f);
-                if mag < threshold {
+                let power = spectrogram.at(t, f);
+
+                let magnitude = power.sqrt();
+                if magnitude < threshold {
                     continue;
                 }
-                // Peak condition: this cell IS the neighborhood maximum
-                if mag >= window_max[t * num_bins + f] {
+
+                if power >= window_max[t * num_bins + f] {
                     local.push(Peak {
                         frame_idx: t as u32,
                         bin_idx: f as u16,
                         time_ms: frame_to_ms(t, spectrogram.hop_size, spectrogram.sample_rate),
                         freq_hz: bin_to_freq(f, spectrogram.sample_rate, spectrogram.window_size)
                             as u16,
-                        magnitude: mag,
+                        magnitude,
                     });
                 }
             }
@@ -94,7 +92,7 @@ fn sliding_max_centered(input: &[f32], radius: usize, output: &mut [f32]) {
     let mut deque: VecDeque<usize> = VecDeque::with_capacity((2 * radius + 1).min(n));
     let mut right = 0usize;
 
-    for i in 0..n {
+    for (i, out_val) in output.iter_mut().enumerate().take(n) {
         let start = i.saturating_sub(radius);
         let end = (i + radius + 1).min(n);
 
@@ -115,7 +113,7 @@ fn sliding_max_centered(input: &[f32], radius: usize, output: &mut [f32]) {
             deque.pop_front();
         }
 
-        output[i] = input[*deque.front().expect("deque should never be empty")];
+        *out_val = input[*deque.front().expect("deque should never be empty")];
     }
 }
 

@@ -149,8 +149,7 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
     mark_processing(&state.db, job.id).await?;
     // update track status
     sqlx::query!(
-        "UPDATE tracks SET  status = $1 WHERE  id= $2",
-        TrackStatus::Fingerprinting as TrackStatus,
+        "UPDATE tracks SET  status = 'fingerprinting' WHERE  id= $1",
         job.track_id
     )
     .execute(&state.db)
@@ -220,18 +219,26 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
 
     // update track as ready
     sqlx::query!(
-        "UPDATE tracks SET status = $1, duration_secs = $2 WHERE id = $3",
-        TrackStatus::Ready as TrackStatus,
+        "UPDATE tracks SET status = 'ready', duration_secs = $1 WHERE id = $2",
         duration_secs,
         job.track_id
     )
     .execute(&mut *tx)
     .await?;
 
-    tx.commit().await?;
+    // Mark job as completed (within the same transaction for atomicity)
+    sqlx::query!(
+        r#"
+        UPDATE fingerprint_jobs
+        SET status = 'completed', completed_at = NOW()
+        WHERE id = $1
+        "#,
+        job.id
+    )
+    .execute(&mut *tx)
+    .await?;
 
-    // Mark job as completed
-    mark_completed(&state.db, job.id).await?;
+    tx.commit().await?;
 
     // Stop the heartbeat
     let _ = tx_heartbeat.send(());
