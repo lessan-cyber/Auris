@@ -20,11 +20,11 @@ pub fn decode_audio(data: Vec<u8>, target_sample_rate: u32) -> Result<(Vec<f32>,
     let decode_start = std::time::Instant::now();
     let (samples, sample_rate, channels) = decode_packets(&mut format, track_id, decoder)?;
     let decode_elapsed = decode_start.elapsed();
-    
+
     let mono_start = std::time::Instant::now();
     let mono_samples = convert_to_mono(samples, channels);
     let mono_elapsed = mono_start.elapsed();
-    
+
     let resample_start = std::time::Instant::now();
     let resampled = resample_to_target(mono_samples, sample_rate, target_sample_rate);
     let resample_elapsed = resample_start.elapsed();
@@ -84,14 +84,18 @@ fn decode_packets(
 ) -> Result<(Vec<f32>, u32, Channels)> {
     let mut sample_buffer: Option<SampleBuffer<f32>> = None;
     let mut current_spec: Option<SignalSpec> = None;
-    
+
     // Pre-allocate based on duration hint if available
-    let n_frames_hint = format.tracks().iter()
+    let n_frames_hint = format
+        .tracks()
+        .iter()
         .find(|t| t.id == track_id)
         .and_then(|t| t.codec_params.n_frames)
         .unwrap_or(0);
-    
-    let n_channels_hint = format.tracks().iter()
+
+    let n_channels_hint = format
+        .tracks()
+        .iter()
         .find(|t| t.id == track_id)
         .and_then(|t| t.codec_params.channels.map(|c| c.count()))
         .unwrap_or(2);
@@ -117,7 +121,7 @@ fn decode_packets(
         match decoder.decode(&packet) {
             Ok(decoded) => {
                 let spec = *decoded.spec();
-                
+
                 // Initialize metadata on first packet
                 if actual_sample_rate.is_none() {
                     actual_sample_rate = Some(spec.rate);
