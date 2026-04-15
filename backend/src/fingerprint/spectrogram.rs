@@ -116,7 +116,7 @@ mod tests {
         let freq = 440.0;
         let duration_secs = 1.0;
         let num_samples = (sample_rate as f32 * duration_secs) as usize;
-        
+
         // Generate a 440Hz sine wave
         let samples: Vec<f32> = (0..num_samples)
             .map(|i| {
@@ -131,7 +131,8 @@ mod tests {
             overlap: 512,
         };
 
-        let spectrogram = generate_spectrogram(&samples, config).expect("Spectrogram generation failed");
+        let spectrogram =
+            generate_spectrogram(&samples, config).expect("Spectrogram generation failed");
         assert!(spectrogram.num_frames > 0);
         assert_eq!(spectrogram.num_bins, 513);
 
@@ -148,7 +149,12 @@ mod tests {
 
         let detected_freq = bin_to_freq(max_bin, sample_rate, 1024);
         // 440Hz at 8000Hz SR and 1024 FFT size: bin = 440 * 1024 / 8000 = 56.32 -> bin 56 or 57
-        assert!((detected_freq - freq).abs() < 10.0, "Detected frequency {} should be near {}Hz", detected_freq, freq);
+        assert!(
+            (detected_freq - freq).abs() < 10.0,
+            "Detected frequency {} should be near {}Hz",
+            detected_freq,
+            freq
+        );
     }
 
     #[test]
