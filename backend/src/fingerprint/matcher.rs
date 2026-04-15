@@ -48,9 +48,13 @@ pub async fn find_matches(
     .bind(&hashes_values)
     .fetch_all(pool)
     .await?;
-    
+
     let db_query_elapsed = db_start.elapsed();
-    tracing::info!("   -> SQL Query took {:?} ({} potential matches found)", db_query_elapsed, matches.len());
+    tracing::info!(
+        "   -> SQL Query took {:?} ({} potential matches found)",
+        db_query_elapsed,
+        matches.len()
+    );
 
     let histogram_start = std::time::Instant::now();
     // Build offset histogram per track in parallel
@@ -93,7 +97,7 @@ pub async fn find_matches(
             }
         }
     }
-    
+
     let histogram_elapsed = histogram_start.elapsed();
     tracing::info!("   -> Histogram processing took {:?}", histogram_elapsed);
 
