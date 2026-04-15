@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        UPDATE fingerprint_jobs\n        SET status = 'processing', attempts = attempts + 1\n        WHERE id = (\n            SELECT id FROM fingerprint_jobs\n            WHERE status = 'queued'\n            ORDER BY created_at\n            LIMIT 1\n            FOR UPDATE SKIP LOCKED\n        )\n        RETURNING\n            id,\n            track_id,\n            status as \"status: JobStatus\",\n            attempts,\n            error_message,\n            created_at,\n            updated_at,\n            completed_at\n        ",
+  "query": "\n        UPDATE fingerprint_jobs\n        SET status = 'processing', attempts = attempts + 1, updated_at = NOW()\n        WHERE id = (\n            SELECT id FROM fingerprint_jobs\n            WHERE status = 'queued'\n               OR (status = 'failed' AND attempts < 3 AND updated_at < NOW() - INTERVAL '5 minutes')\n            ORDER BY created_at\n            LIMIT 1\n            FOR UPDATE SKIP LOCKED\n        )\n        RETURNING\n            id,\n            track_id,\n            status as \"status: JobStatus\",\n            attempts,\n            error_message,\n            created_at,\n            updated_at,\n            completed_at\n        ",
   "describe": {
     "columns": [
       {
@@ -70,5 +70,5 @@
       true
     ]
   },
-  "hash": "120da3267cab8f5018e3d5ebfbacfb2c2b2b8fae9b859e5ba538a5322ed28e0f"
+  "hash": "6e6326feebfc9c8b1093a386c86a93957231e0f90137b943337db03879158499"
 }
