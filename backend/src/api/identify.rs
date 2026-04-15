@@ -82,7 +82,7 @@ async fn identify_track(
         Ok::<(Vec<CombinatorialHash>, f64), anyhow::Error>((hashes, duration))
     })
     .await??;
-    
+
     let processing_elapsed = processing_start.elapsed();
     tracing::info!(
         "Stage 1: Audio processing completed in {:?} ({}s audio, {} hashes)",
@@ -101,7 +101,10 @@ async fn identify_track(
     let enrich_start = Instant::now();
     let enriched = enrich_matches(&state.db, matches).await?;
     let enrich_elapsed = enrich_start.elapsed();
-    tracing::info!("Stage 3: Metadata enrichment completed in {:?}", enrich_elapsed);
+    tracing::info!(
+        "Stage 3: Metadata enrichment completed in {:?}",
+        enrich_elapsed
+    );
     let query_duration = start_time.elapsed().as_millis() as u32;
     // Build response
     let match_details: Vec<MatchDetail> = enriched

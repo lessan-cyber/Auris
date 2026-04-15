@@ -178,7 +178,7 @@ mod tests {
         let mut data = vec![0.0f32; 100 * 100];
         // Create a single clear peak at (50, 50)
         data[50 * 100 + 50] = 100.0;
-        
+
         let spectrogram = Spectrogram {
             data,
             num_frames: 100,
