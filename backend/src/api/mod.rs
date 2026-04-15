@@ -9,6 +9,7 @@ use std::sync::Arc;
 pub fn create_router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/health", get(health::health_check))
+        .route("/ws", get(websocket::ws_handler))
         .nest(
             "/tracks",
             tracks::router().layer(DefaultBodyLimit::max(state.settings.max_file_size)),
