@@ -1,7 +1,7 @@
+use crate::AppState;
 use axum::{Json, extract::State};
 use serde::Serialize;
 use std::sync::Arc;
-use crate::AppState;
 
 #[derive(Serialize)]
 pub struct HealthResponse {
@@ -11,9 +11,7 @@ pub struct HealthResponse {
     pub version: &'static str,
 }
 
-pub async fn health_check(
-    State(state): State<Arc<AppState>>,
-) -> Json<HealthResponse> {
+pub async fn health_check(State(state): State<Arc<AppState>>) -> Json<HealthResponse> {
     // Check database
     let database_status = match sqlx::query("SELECT 1").execute(&state.db).await {
         Ok(_) => "up".to_string(),
@@ -25,12 +23,14 @@ pub async fn health_check(
 
     // Check S3
     // We try to list objects with a limit of 1 to verify connectivity and bucket existence
-    let s3_status = match state.s3.client
+    let s3_status = match state
+        .s3
+        .client
         .list_objects_v2()
         .bucket(&state.s3.bucket_name)
         .max_keys(1)
         .send()
-        .await 
+        .await
     {
         Ok(_) => "up".to_string(),
         Err(e) => {
