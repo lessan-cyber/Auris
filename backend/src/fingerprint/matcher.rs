@@ -20,6 +20,7 @@ pub struct MatchResult {
     pub match_count: usize,
     pub total_hashes: usize,
 }
+const HIGH_CONFIDENCE_SURVIVAL_RATE: f32 = 0.02;
 /// Find matches for a set of sample hashes
 /// Algorithm:
 /// step 1:  Look up each sample in the database
@@ -82,7 +83,7 @@ pub async fn find_matches(
     for ((track_id, offset), count) in offset_votes {
         if count >= threshold {
             let survival_rate = (count as f32) / (sample_hashes.len() as f32);
-            let confidence = (survival_rate / 0.02).min(1.0);
+            let confidence = (survival_rate / HIGH_CONFIDENCE_SURVIVAL_RATE).min(1.0);
 
             let result = MatchResult {
                 track_id,
@@ -119,17 +120,17 @@ mod tests {
 
         let count = 1000;
         let survival_rate = (count as f32) / (sample_hashes_len as f32);
-        let confidence = (survival_rate / 0.02).min(1.0);
+        let confidence = (survival_rate / HIGH_CONFIDENCE_SURVIVAL_RATE).min(1.0);
         assert!((confidence - 1.0).abs() < 0.001);
 
         let count = 100;
         let survival_rate = (count as f32) / (sample_hashes_len as f32);
-        let confidence = (survival_rate / 0.02).min(1.0);
+        let confidence = (survival_rate / HIGH_CONFIDENCE_SURVIVAL_RATE).min(1.0);
         assert!((confidence - 0.1).abs() < 0.001);
 
         let count = 5000;
         let survival_rate = (count as f32) / (sample_hashes_len as f32);
-        let confidence = (survival_rate / 0.02).min(1.0);
+        let confidence = (survival_rate / HIGH_CONFIDENCE_SURVIVAL_RATE).min(1.0);
         assert_eq!(confidence, 1.0);
     }
 }
