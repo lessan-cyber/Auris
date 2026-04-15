@@ -9,10 +9,11 @@ pub async fn fetch_next_job(pool: &PgPool) -> Result<Option<FingerprintJob>> {
         FingerprintJob,
         r#"
         UPDATE fingerprint_jobs
-        SET status = 'processing', attempts = attempts + 1
+        SET status = 'processing', attempts = attempts + 1, updated_at = NOW()
         WHERE id = (
             SELECT id FROM fingerprint_jobs
             WHERE status = 'queued'
+               OR (status = 'failed' AND attempts < 3 AND updated_at < NOW() - INTERVAL '5 minutes')
             ORDER BY created_at
             LIMIT 1
             FOR UPDATE SKIP LOCKED
@@ -120,7 +121,7 @@ pub async fn mark_failed(pool: &PgPool, job_id: Uuid, error_message: &str) -> Re
     sqlx::query!(
         r#"
         UPDATE fingerprint_jobs
-        SET status = 'failed', error_message = $2
+        SET status = 'failed', error_message = $2, updated_at = NOW()
         WHERE id = $1
         "#,
         job_id,
@@ -128,12 +129,12 @@ pub async fn mark_failed(pool: &PgPool, job_id: Uuid, error_message: &str) -> Re
     )
     .execute(&mut *tx)
     .await?;
-    // also mark track status as error
+    // only mark track status as error if it was the last attempt
     sqlx::query!(
         r#"
         UPDATE tracks
         SET status = 'error'
-        WHERE id = (SELECT track_id FROM fingerprint_jobs WHERE id = $1)
+        WHERE id = (SELECT track_id FROM fingerprint_jobs WHERE id = $1 AND attempts >= 3)
         "#,
         job_id
     )

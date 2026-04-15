@@ -158,3 +158,60 @@ fn filter_by_density(peaks: &mut Vec<Peak>, max_per_window: usize) {
 pub fn peaks_to_constellation(peaks: Vec<Peak>) -> Vec<(u32, u16)> {
     peaks.into_iter().map(|p| (p.time_ms, p.freq_hz)).collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fingerprint::spectrogram::Spectrogram;
+
+    #[test]
+    fn test_sliding_max_centered() {
+        let input = vec![1.0, 2.0, 1.5, 3.0, 2.5, 1.0];
+        let mut output = vec![0.0; input.len()];
+        sliding_max_centered(&input, 1, &mut output);
+        // Radius 1 means window of 3: [1,2,1.5] -> 2.0, [2,1.5,3] -> 3.0, etc.
+        assert_eq!(output, vec![2.0, 2.0, 3.0, 3.0, 3.0, 2.5]);
+    }
+
+    #[test]
+    fn test_extract_peaks_simple() {
+        let mut data = vec![0.0f32; 100 * 100];
+        // Create a single clear peak at (50, 50)
+        data[50 * 100 + 50] = 100.0;
+        
+        let spectrogram = Spectrogram {
+            data,
+            num_frames: 100,
+            num_bins: 100,
+            sample_rate: 8000,
+            window_size: 1024,
+            hop_size: 512,
+        };
+
+        let peaks = extract_peaks(&spectrogram, &SpectrogramConfig::default(), 1.0);
+        assert!(!peaks.is_empty());
+        let peak = &peaks[0];
+        assert_eq!(peak.frame_idx, 50);
+        assert_eq!(peak.bin_idx, 50);
+    }
+
+    #[test]
+    fn test_filter_by_density() {
+        let mut peaks = Vec::new();
+        // Create 100 peaks in the same 100ms window
+        for i in 0..100 {
+            peaks.push(Peak {
+                frame_idx: 0,
+                bin_idx: i as u16,
+                time_ms: 10,
+                freq_hz: i as u16 * 40,
+                magnitude: i as f32, // increasing magnitude
+            });
+        }
+
+        filter_by_density(&mut peaks, 10);
+        // Should only keep top 10 strongest
+        assert_eq!(peaks.len(), 10);
+        assert!(peaks.iter().all(|p| p.magnitude >= 90.0));
+    }
+}

@@ -70,6 +70,7 @@ async fn identify_track(
     // Validate file type (extension and MIME type)
     validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
     // Process sample (same pipeline as ingestion, but we don't store)
+    let processing_start = Instant::now();
     let (sample_hashes, sample_duration) = tokio::task::spawn_blocking(move || {
         let (samples, duration) = decode_audio(audio_data.to_vec(), 8000)?;
 
@@ -81,16 +82,26 @@ async fn identify_track(
         Ok::<(Vec<CombinatorialHash>, f64), anyhow::Error>((hashes, duration))
     })
     .await??;
+    
+    let processing_elapsed = processing_start.elapsed();
     tracing::info!(
-        "Sample processed: {}s, {} hashes",
+        "Stage 1: Audio processing completed in {:?} ({}s audio, {} hashes)",
+        processing_elapsed,
         sample_duration,
         sample_hashes.len()
     );
+
     // Query database for matches
-    // Threshold: need at least 10 matching hashes to be considered
+    let db_start = Instant::now();
     let matches = find_matches(&state.db, &sample_hashes, 10).await?;
+    let db_elapsed = db_start.elapsed();
+    tracing::info!("Stage 2: Database matching completed in {:?}", db_elapsed);
+
     // Enrich with track metadata
+    let enrich_start = Instant::now();
     let enriched = enrich_matches(&state.db, matches).await?;
+    let enrich_elapsed = enrich_start.elapsed();
+    tracing::info!("Stage 3: Metadata enrichment completed in {:?}", enrich_elapsed);
     let query_duration = start_time.elapsed().as_millis() as u32;
     // Build response
     let match_details: Vec<MatchDetail> = enriched

@@ -7,7 +7,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, FromRow)]
 #[allow(dead_code)]
 pub struct Fingerprint {
-    pub hash: i32,      // Stored as i32 in Postgres, but represents u32
+    pub hash: i64,      // Stored as BIGINT in Postgres
     pub track_id: Uuid, // Stored as UUID in Postgres
     pub offset_ms: i32,
     pub created_at: DateTime<Utc>,
@@ -23,10 +23,9 @@ pub struct HashRecord {
 
 impl HashRecord {
     /// Convert to database-compatible types
-    /// Note: Hash values > i32::MAX will wrap to negative values in the database.
-    /// Use stored_hash as u32 when reading back to recover the original value.
-    pub fn to_db_record(self, track_id: Uuid) -> (i32, Uuid, i32) {
-        (self.hash as i32, track_id, self.offset_ms as i32)
+    /// Note: Hash values are stored as i64 (BIGINT) in Postgres.
+    pub fn to_db_record(self, track_id: Uuid) -> (i64, Uuid, i32) {
+        (self.hash as i64, track_id, self.offset_ms as i32)
     }
 }
 

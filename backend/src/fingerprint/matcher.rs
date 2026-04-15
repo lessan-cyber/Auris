@@ -34,6 +34,7 @@ pub async fn find_matches(
     if sample_hashes.is_empty() {
         return Ok(Vec::new());
     }
+    let db_start = std::time::Instant::now();
     // collect all hashes values for batch lookup
     let hashes_values: Vec<i64> = sample_hashes.iter().map(|h| h.hash as i64).collect();
     // query the database for hashes
@@ -47,6 +48,11 @@ pub async fn find_matches(
     .bind(&hashes_values)
     .fetch_all(pool)
     .await?;
+    
+    let db_query_elapsed = db_start.elapsed();
+    tracing::info!("   -> SQL Query took {:?} ({} potential matches found)", db_query_elapsed, matches.len());
+
+    let histogram_start = std::time::Instant::now();
     // Build offset histogram per track in parallel
     // create lookup map for sample hashes (hash -> offsets)
     let mut sample_offsets: HashMap<i64, Vec<u32>> = HashMap::new();
@@ -71,9 +77,12 @@ pub async fn find_matches(
     let mut track_best_match: HashMap<Uuid, MatchResult> = HashMap::new();
     for ((track_id, offset), count) in offset_votes {
         if count >= threshold {
+            let survival_rate = (count as f32) / (sample_hashes.len() as f32);
+            let confidence = (survival_rate / 0.02).min(1.0);
+
             let result = MatchResult {
                 track_id,
-                confidence: (count as f32) / (sample_hashes.len() as f32),
+                confidence,
                 offset_ms: offset,
                 match_count: count,
                 total_hashes: sample_hashes.len(),
@@ -84,11 +93,41 @@ pub async fn find_matches(
             }
         }
     }
+    
+    let histogram_elapsed = histogram_start.elapsed();
+    tracing::info!("   -> Histogram processing took {:?}", histogram_elapsed);
+
     let mut results: Vec<MatchResult> = track_best_match.into_values().collect();
     results.sort_by(|a, b| b.match_count.cmp(&a.match_count));
     // Cap results to top 5
     results.truncate(5);
     Ok(results)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::fingerprint::hasher::CombinatorialHash;
+
+    #[test]
+    fn test_confidence_calculation() {
+        let sample_hashes_len = 50000;
+
+        let count = 1000;
+        let survival_rate = (count as f32) / (sample_hashes_len as f32);
+        let confidence = (survival_rate / 0.02).min(1.0);
+        assert!((confidence - 1.0).abs() < 0.001);
+
+        let count = 100;
+        let survival_rate = (count as f32) / (sample_hashes_len as f32);
+        let confidence = (survival_rate / 0.02).min(1.0);
+        assert!((confidence - 0.1).abs() < 0.001);
+
+        let count = 5000;
+        let survival_rate = (count as f32) / (sample_hashes_len as f32);
+        let confidence = (survival_rate / 0.02).min(1.0);
+        assert_eq!(confidence, 1.0);
+    }
 }
 /// Get track metadata for match results using a batch query
 pub async fn enrich_matches(

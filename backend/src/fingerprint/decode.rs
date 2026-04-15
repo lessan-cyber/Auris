@@ -12,13 +12,28 @@ use symphonia::core::probe::Hint;
 /// Decodes audio file to 8kHz mono f32 samples
 /// Returns (samples, duration_seconds)
 pub fn decode_audio(data: Vec<u8>, target_sample_rate: u32) -> Result<(Vec<f32>, f64)> {
+    let start = std::time::Instant::now();
     let mss = create_media_source(data);
     let mut format = probe_format(mss)?;
     let (track_id, decoder) = create_decoder(&mut format)?;
 
+    let decode_start = std::time::Instant::now();
     let (samples, sample_rate, channels) = decode_packets(&mut format, track_id, decoder)?;
+    let decode_elapsed = decode_start.elapsed();
+    
+    let mono_start = std::time::Instant::now();
     let mono_samples = convert_to_mono(samples, channels);
+    let mono_elapsed = mono_start.elapsed();
+    
+    let resample_start = std::time::Instant::now();
     let resampled = resample_to_target(mono_samples, sample_rate, target_sample_rate);
+    let resample_elapsed = resample_start.elapsed();
+
+    let total_elapsed = start.elapsed();
+    tracing::info!("      - Symphonia decode: {:?}", decode_elapsed);
+    tracing::info!("      - Mono conversion:  {:?}", mono_elapsed);
+    tracing::info!("      - Resampling:       {:?}", resample_elapsed);
+    tracing::info!("      - Total decode_audio: {:?}", total_elapsed);
 
     let duration_secs = resampled.len() as f64 / target_sample_rate as f64;
     Ok((resampled, duration_secs))
@@ -69,7 +84,19 @@ fn decode_packets(
 ) -> Result<(Vec<f32>, u32, Channels)> {
     let mut sample_buffer: Option<SampleBuffer<f32>> = None;
     let mut current_spec: Option<SignalSpec> = None;
-    let mut samples: Vec<f32> = Vec::new();
+    
+    // Pre-allocate based on duration hint if available
+    let n_frames_hint = format.tracks().iter()
+        .find(|t| t.id == track_id)
+        .and_then(|t| t.codec_params.n_frames)
+        .unwrap_or(0);
+    
+    let n_channels_hint = format.tracks().iter()
+        .find(|t| t.id == track_id)
+        .and_then(|t| t.codec_params.channels.map(|c| c.count()))
+        .unwrap_or(2);
+
+    let mut samples: Vec<f32> = Vec::with_capacity(n_frames_hint as usize * n_channels_hint);
 
     let mut actual_sample_rate = None;
     let mut actual_channels = None;
@@ -89,28 +116,20 @@ fn decode_packets(
 
         match decoder.decode(&packet) {
             Ok(decoded) => {
-                // Initialize or update the sample rate/channels from the first valid packet
+                let spec = *decoded.spec();
+                
+                // Initialize metadata on first packet
                 if actual_sample_rate.is_none() {
-                    actual_sample_rate = Some(decoded.spec().rate);
-                    actual_channels = Some(decoded.spec().channels);
-                }
-
-                // Defensive check: Recreate sample buffer if spec changes or capacity is insufficient
-                let spec = decoded.spec();
-                let frames = decoded.frames();
-                let required_capacity = frames * spec.channels.count();
-
-                let needs_recreate = sample_buffer.as_ref().is_none_or(|_| {
-                    (current_spec.as_ref() != Some(spec))
-                        || sample_buffer.as_ref().unwrap().capacity() < required_capacity
-                });
-
-                if needs_recreate {
-                    current_spec = Some(*spec);
-                    sample_buffer = Some(SampleBuffer::new(required_capacity as u64, *spec));
-                    // Update actual metadata when spec changes to avoid stale values
                     actual_sample_rate = Some(spec.rate);
                     actual_channels = Some(spec.channels);
+                    current_spec = Some(spec);
+                    sample_buffer = Some(SampleBuffer::new(decoded.capacity() as u64, spec));
+                }
+
+                // Check if buffer needs recreation (rare)
+                if current_spec.as_ref() != Some(&spec) {
+                    current_spec = Some(spec);
+                    sample_buffer = Some(SampleBuffer::new(decoded.capacity() as u64, spec));
                 }
 
                 if let Some(ref mut buf) = sample_buffer {
