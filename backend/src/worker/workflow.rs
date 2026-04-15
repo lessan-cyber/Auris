@@ -1,4 +1,5 @@
 use crate::AppState;
+use crate::api::websocket::WsMessage;
 use crate::fingerprint::{
     decode_audio, extract_peaks, generate_hashes, generate_spectrogram, hashes_to_db_records,
     peaks_to_constellation, spectrogram::SpectrogramConfig,
@@ -124,6 +125,18 @@ async fn process_job_with_spectrogram(state: &Arc<AppState>, job: &FingerprintJo
 }
 
 async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> {
+    // Notification helper
+    let notify = |status: &str, progress: Option<u8>, message: Option<&str>| {
+        if let Some(tx_ref) = state.ws_clients.get(&job.track_id) {
+            let _ = tx_ref.value().send(WsMessage {
+                track_id: job.track_id,
+                status: status.to_string(),
+                progress,
+                message: message.map(String::from),
+            });
+        }
+    };
+
     // Start heartbeat task in the background
     let db_clone = state.db.clone();
     let job_id = job.id;
@@ -147,6 +160,11 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
 
     // Clain Job
     mark_processing(&state.db, job.id).await?;
+    notify(
+        "processing",
+        Some(5),
+        Some("Job claimed, starting processing"),
+    );
     // update track status
     sqlx::query!(
         "UPDATE tracks SET  status = 'fingerprinting' WHERE  id= $1",
@@ -154,6 +172,11 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
     )
     .execute(&state.db)
     .await?;
+    notify(
+        "processing",
+        Some(10),
+        Some("Track status updated to fingerprinting"),
+    );
 
     // Download from S3
     info!("Downloading track {} from S3", job.track_id);
@@ -165,11 +188,17 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
     .fetch_one(&state.db)
     .await?;
     let audio_data = state.s3.download_file(&track.object_key).await?;
+    notify(
+        "processing",
+        Some(20),
+        Some("Audio downloaded from storage"),
+    );
     // decode audio
     let (samples, duration_secs) =
         tokio::task::spawn_blocking(move || decode_audio(audio_data, 8000)).await??;
 
     info!("Decoded: {} samples, {:.2}s", samples.len(), duration_secs);
+    notify("processing", Some(40), Some("Audio decoded successfully"));
 
     // Create a spectrogram
     let spectrogram = tokio::task::spawn_blocking(move || {
@@ -183,6 +212,7 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
         spectrogram.num_frames(),
         spectrogram.num_freq_bins()
     );
+    notify("processing", Some(50), Some("Spectrogram generated"));
 
     // Constellation (peaks)
     let constellation = tokio::task::spawn_blocking(move || {
@@ -193,12 +223,18 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
     .await?;
 
     info!("Constellation: {} peaks", constellation.len());
+    notify(
+        "processing",
+        Some(70),
+        Some("Peaks extracted and constellation created"),
+    );
 
     // Hashing (combinatorial)
     let hashes =
         tokio::task::spawn_blocking(move || generate_hashes(&constellation, 300, 2000, 10)).await?;
 
     info!("Hash: {} combinatorial hashes", hashes.len());
+    notify("processing", Some(90), Some("Fingerprint hashes generated"));
 
     // Bulk Insert to database
     let db_result = hashes_to_db_records(&hashes, job.track_id);
@@ -247,6 +283,11 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
         "Track {} fingerprinted: {} hash stored",
         job.track_id,
         hashes.len()
+    );
+    notify(
+        "completed",
+        Some(100),
+        Some("Fingerprinting completed successfully"),
     );
     Ok(())
 }

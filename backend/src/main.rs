@@ -9,14 +9,17 @@ mod utils;
 mod worker;
 use anyhow::Result;
 use clap::Parser;
+use dashmap::DashMap;
+use tokio::sync::mpsc;
 use tracing::{Level, info};
 use tracing_subscriber::FmtSubscriber;
+use uuid::Uuid;
 use worker::mode::{ExecutionMode, Mode};
-
 pub struct AppState {
     pub db: sqlx::PgPool,
     pub s3: config::S3Client,
     pub settings: settings::Settings,
+    pub ws_clients: Arc<DashMap<Uuid, mpsc::UnboundedSender<crate::api::websocket::WsMessage>>>,
 }
 
 #[tokio::main]
@@ -46,6 +49,7 @@ async fn main() -> Result<()> {
         db: db_pool,
         s3: s3_client,
         settings: settings.clone(),
+        ws_clients: Arc::new(DashMap::new()),
     });
 
     match mode.execution_mode {

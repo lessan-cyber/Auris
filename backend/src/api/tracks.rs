@@ -117,8 +117,8 @@ async fn create_track(
     // Validate file type (extension and MIME type)
     let ext = validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
 
-    let track_id = Uuid::new_v4();
-    let job_id = Uuid::new_v4();
+    let track_id = Uuid::now_v7();
+    let job_id = Uuid::now_v7();
 
     let object_key = format!("tracks/{}/{}.{}", track_id, "original", ext);
 

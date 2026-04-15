@@ -2,6 +2,7 @@ use crate::AppState;
 pub mod health;
 pub mod identify;
 pub mod tracks;
+pub mod websocket;
 use axum::{Router, extract::DefaultBodyLimit, routing::get};
 use std::sync::Arc;
 
