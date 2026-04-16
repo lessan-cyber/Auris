@@ -37,4 +37,4 @@ ENV RUST_LOG=info
 EXPOSE 8080
 
 # Command to run
-ENTRYPOINT ["/usr/local/bin/backend"]
+CMD ["backend"]

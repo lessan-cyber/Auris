@@ -1,32 +1,50 @@
 ---
 services:
-    #backend:
-    #    build: ./backend
-    #    ports:
-    #        - "8080:8080"
-    #    environment:
-    #        DATABASE_URL: postgres://echosync:echosync@postgres:5432/echosync
-    #        MINIO_ENDPOINT: http://minio:9000
-    #        MINIO_ACCESS_KEY: minioadmin
-    #        MINIO_SECRET_KEY: minioadmin
-    #        MINIO_BUCKET: audio-library
-    #        RUST_LOG: info
-    #    depends_on:
-    #        postgres:
-    #            condition: service_healthy
-    #        minio:
-    #            condition: service_started
-    #    volumes:
-    #        - ./backend:/app
+    api:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        container_name: auris-api
+        ports:
+            - "8000:8000"
+        environment:
+            - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+            - RUSTFS_ENDPOINT=http://rustfs:9000
+            - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
+            - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
+            - RUSTFS_BUCKET_NAME=${RUSTFS_BUCKET_NAME}
+            - BIND_ADDR=0.0.0.0:8000
+            - RUST_LOG=info
+        command: ["backend", "--execution-mode", "api"]
+        depends_on:
+            postgres:
+                condition: service_healthy
+            rustfs:
+                condition: service_healthy
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
-    #frontend:
-    #    build: ./frontend
-    #    ports:
-    #        - "5173:5173"
-    #    environment:
-    #        VITE_API_URL: http://localhost:8080
-    #    depends_on:
-    #        - backend
+    worker:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        container_name: auris-worker
+        environment:
+            - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+            - RUSTFS_ENDPOINT=http://rustfs:9000
+            - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
+            - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
+            - RUSTFS_BUCKET_NAME=${RUSTFS_BUCKET_NAME}
+            - RUST_LOG=info
+        command: ["backend", "--execution-mode", "worker"]
+        depends_on:
+            postgres:
+                condition: service_healthy
+            rustfs:
+                condition: service_healthy
 
     postgres:
         container_name: database
@@ -65,14 +83,19 @@ services:
                     "-c",
                     "curl -f http://127.0.0.1:9000/health && curl -f http://127.0.0.1:9001/rustfs/console/health",
                 ]
-            interval: 30s
-            timeout: 10s
+            interval: 10s
+            timeout: 5s
             retries: 5
+
     rustfs-init:
         image: rustfs/rc:latest
         depends_on:
             rustfs:
                 condition: service_healthy
+        environment:
+            - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
+            - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
+            - RUSTFS_BUCKET_NAME=${RUSTFS_BUCKET_NAME}
         entrypoint: >
             /bin/sh -c "
             echo 'waiting for RustFS...';
