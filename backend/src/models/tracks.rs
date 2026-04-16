@@ -35,6 +35,12 @@ pub struct RegisterTrackRequest {
     pub album: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct UpdateTrackRequest {
+    pub title: Option<String>,
+    pub artist: Option<String>,
+}
+
 /// Response for registering a new track.
 #[derive(Debug, Serialize)]
 pub struct TrackResponse {
