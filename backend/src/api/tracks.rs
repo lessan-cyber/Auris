@@ -1,7 +1,7 @@
 use crate::AppState;
 use crate::errors::{AppError, Result};
 use crate::models::jobs::JobStatus;
-use crate::models::tracks::{Track, TrackResponse, TrackStatus};
+use crate::models::tracks::{Track, TrackResponse, TrackStatus, UpdateTrackRequest};
 use crate::utils::file_hash::{check_file_hash_exists, generate_file_hash};
 use crate::utils::file_validation::validate_audio_file;
 use axum::extract::Path;
@@ -9,7 +9,7 @@ use axum::{
     Json, Router,
     extract::{Multipart, Query, State},
     http::StatusCode,
-    routing::{delete, get, post},
+    routing::{delete, get, patch, post},
 };
 use serde::Deserialize;
 use serde_json;
@@ -22,6 +22,7 @@ pub fn router() -> Router<Arc<AppState>> {
         .route("/", post(create_track))
         .route("/", get(list_tracks))
         .route("/{id}", get(get_track))
+        .route("/{id}", patch(update_track))
         .route("/{id}", delete(delete_track))
         .route("/{id}/url", get(get_track_url))
 }
@@ -344,7 +345,43 @@ async fn delete_track(
     .execute(&mut *tx)
     .await?;
 
-    tx.commit().await?;
+    Ok(Json(track.into()))
+}
+
+async fn update_track(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<Uuid>,
+    Json(payload): Json<UpdateTrackRequest>,
+) -> Result<Json<TrackResponse>> {
+    if payload.title.is_none() && payload.artist.is_none() {
+        return Err(AppError::BadRequest("No fields to update".to_string()));
+    }
+
+    let mut query_builder = sqlx::QueryBuilder::new("UPDATE tracks SET ");
+    let mut separated = query_builder.separated(", ");
+
+    if let Some(title) = payload.title {
+        separated.push("title = ");
+        separated.push_bind_unseparated(title);
+    }
+
+    if let Some(artist) = payload.artist {
+        separated.push("artist = ");
+        separated.push_bind_unseparated(artist);
+    }
+
+    // Always update updated_at
+    separated.push("updated_at = NOW() ");
+
+    query_builder.push(" WHERE id = ");
+    query_builder.push_bind(id);
+    query_builder.push(" RETURNING id, title, artist, duration_secs, object_key, file_hash, status, created_at, updated_at");
+
+    let track = query_builder
+        .build_query_as::<Track>()
+        .fetch_optional(&state.db)
+        .await?
+        .ok_or(AppError::NotFound)?;
 
     Ok(Json(track.into()))
 }
