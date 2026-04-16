@@ -22,19 +22,25 @@ FROM debian:bookworm-slim AS runtime
 WORKDIR /app
 
 # Install runtime dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     libssl3 \
+    curl\
     && rm -rf /var/lib/apt/lists/*
 
+# Create a non-root user
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 # Copy the binary from builder
 COPY --from=builder /app/target/release/backend /usr/local/bin/backend
+
+# Use the non-root user
+USER appuser
 
 # Set environment variables
 ENV RUST_LOG=info
 
 # Expose port
-EXPOSE 8080
+EXPOSE 8000
 
 # Command to run
 CMD ["backend"]
