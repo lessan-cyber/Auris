@@ -6,7 +6,7 @@ pub fn generate_file_hash(file: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(file);
     let hash_result = hasher.finalize();
-    
+
     let mut s = String::with_capacity(hash_result.len() * 2);
     for b in hash_result {
         use std::fmt::Write;

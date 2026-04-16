@@ -131,7 +131,7 @@ async fn create_track(
         file_data.len(),
         ext
     );
-    
+
     // First, try to insert the track atomically.
     // If it's a duplicate hash, ON CONFLICT DO NOTHING will return no rows.
     let mut tx = state.db.begin().await?;
@@ -160,13 +160,13 @@ async fn create_track(
         let existing_track = check_file_hash_exists(&state.db, &file_hash)
             .await?
             .ok_or_else(|| AppError::Internal("Duplicate detected but not found".to_string()))?;
-        
+
         return Ok((
             StatusCode::CONFLICT,
             Json(TrackResponse::from(existing_track)),
         ));
     }
-    
+
     let track = track_opt.unwrap();
 
     sqlx::query!(
