@@ -12,6 +12,7 @@ pub struct Track {
     pub artist: Option<String>,
     pub duration_secs: f64,
     pub object_key: String,
+    pub file_hash: Option<String>,
     pub status: TrackStatus,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

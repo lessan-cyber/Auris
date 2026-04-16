@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n        INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)\n        VALUES ($1, $2, $3, $4, $5, 'pending')\n        RETURNING id, title, artist, duration_secs, object_key,\n                  status as \"status: TrackStatus\", created_at, updated_at\n        ",
+  "query": "\n        INSERT INTO tracks (id, title, artist, duration_secs, object_key, file_hash, status)\n        VALUES ($1, $2, $3, $4, $5, $6, 'pending')\n        RETURNING id, title, artist, duration_secs, object_key, file_hash,\n                  status as \"status: TrackStatus\", created_at, updated_at\n        ",
   "describe": {
     "columns": [
       {
@@ -30,6 +30,11 @@
       },
       {
         "ordinal": 5,
+        "name": "file_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
         "name": "status: TrackStatus",
         "type_info": {
           "Custom": {
@@ -46,12 +51,12 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -62,6 +67,7 @@
         "Text",
         "Text",
         "Float8",
+        "Text",
         "Text"
       ]
     },
@@ -71,10 +77,11 @@
       true,
       false,
       false,
+      true,
       false,
       false,
       false
     ]
   },
-  "hash": "ec7216aa1ebab869b5496e822e64243c28b55007385d9210d906fb7f2d55f549"
+  "hash": "62295b2aa04c22cb423c884ff4c45a874cc77ac8714dc644f896376f823959a8"
 }

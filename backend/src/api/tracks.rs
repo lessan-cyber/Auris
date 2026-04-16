@@ -2,6 +2,7 @@ use crate::AppState;
 use crate::errors::{AppError, Result};
 use crate::models::jobs::JobStatus;
 use crate::models::tracks::{Track, TrackResponse, TrackStatus};
+use crate::utils::file_hash::{check_file_hash_exists, generate_file_hash};
 use crate::utils::file_validation::validate_audio_file;
 use axum::extract::Path;
 use axum::{
@@ -11,7 +12,6 @@ use axum::{
     routing::{delete, get, post},
 };
 use serde::Deserialize;
-
 use serde_json;
 
 use std::sync::Arc;
@@ -113,6 +113,16 @@ async fn create_track(
         tracing::error!("Validation failed: Audio file is required");
         AppError::Validation("Audio file is required".to_string())
     })?;
+    let file_data_for_hash = file_data.to_vec();
+    let file_hash =
+        tokio::task::spawn_blocking(move || generate_file_hash(file_data_for_hash)).await?;
+    // After computing file_hash
+    if let Some(existing_track) = check_file_hash_exists(&state.db, &file_hash).await? {
+        return Ok((
+            StatusCode::CONFLICT,
+            Json(TrackResponse::from(existing_track)),
+        ));
+    }
 
     // Validate file type (extension and MIME type)
     let ext = validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
@@ -133,16 +143,17 @@ async fn create_track(
     let track = sqlx::query_as!(
         Track,
         r#"
-        INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)
-        VALUES ($1, $2, $3, $4, $5, 'pending')
-        RETURNING id, title, artist, duration_secs, object_key,
+        INSERT INTO tracks (id, title, artist, duration_secs, object_key, file_hash, status)
+        VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+        RETURNING id, title, artist, duration_secs, object_key, file_hash,
                   status as "status: TrackStatus", created_at, updated_at
         "#,
         track_id,
         title,
         artist,
         0.0, // duration unknown until we process it
-        object_key
+        object_key,
+        file_hash
     )
     .fetch_one(&mut *tx)
     .await?;
@@ -198,6 +209,7 @@ async fn list_tracks(
             artist,
             duration_secs,
             object_key,
+            file_hash,
             status as "status: TrackStatus",
             created_at,
             updated_at
@@ -228,6 +240,7 @@ async fn get_track(
             artist,
             duration_secs,
             object_key,
+            file_hash,
             status as "status: TrackStatus",
             created_at,
             updated_at
@@ -283,7 +296,7 @@ async fn delete_track(
     let track = sqlx::query_as!(
         Track,
         r#"
-            SELECT id, title, artist, duration_secs, object_key,
+            SELECT id, title, artist, duration_secs, object_key, file_hash,
                    status as "status: TrackStatus", created_at, updated_at
             FROM tracks
             WHERE id = $1
