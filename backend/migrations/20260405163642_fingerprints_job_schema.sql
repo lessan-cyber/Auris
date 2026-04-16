@@ -1,6 +1,6 @@
 -- Jobs queue table
 CREATE TABLE fingerprint_jobs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
+    id UUID PRIMARY KEY DEFAULT uuidv7(),
     track_id UUID NOT NULL REFERENCES tracks(id) ON DELETE CASCADE,
     status job_status NOT NULL DEFAULT 'queued',
     attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
