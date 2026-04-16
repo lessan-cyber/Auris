@@ -1,7 +1,7 @@
 -- Add migration script here
 -- Tracks table
 CREATE TABLE tracks (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v7(),
     title TEXT NOT NULL,
     artist TEXT,
     duration_secs FLOAT NOT NULL CHECK (duration_secs >= 0),
