@@ -116,13 +116,6 @@ async fn create_track(
     let file_data_for_hash = file_data.clone();
     let file_hash =
         tokio::task::spawn_blocking(move || generate_file_hash(&file_data_for_hash[..])).await?;
-    // After computing file_hash
-    if let Some(existing_track) = check_file_hash_exists(&state.db, &file_hash).await? {
-        return Ok((
-            StatusCode::CONFLICT,
-            Json(TrackResponse::from(existing_track)),
-        ));
-    }
 
     // Validate file type (extension and MIME type)
     let ext = validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
@@ -138,25 +131,43 @@ async fn create_track(
         file_data.len(),
         ext
     );
+    
+    // First, try to insert the track atomically.
+    // If it's a duplicate hash, ON CONFLICT DO NOTHING will return no rows.
     let mut tx = state.db.begin().await?;
-    // Insert track into database (status = pending)
-    let track = sqlx::query_as!(
+    let track_opt = sqlx::query_as!(
         Track,
         r#"
         INSERT INTO tracks (id, title, artist, duration_secs, object_key, file_hash, status)
         VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+        ON CONFLICT (file_hash) DO NOTHING
         RETURNING id, title, artist, duration_secs, object_key, file_hash,
                   status as "status: TrackStatus", created_at, updated_at
         "#,
         track_id,
         title,
         artist,
-        0.0, // duration unknown until we process it
+        0.0,
         object_key,
         file_hash
     )
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+
+    if track_opt.is_none() {
+        // Duplicate found. We need to fetch the existing track to return it.
+        tx.rollback().await?;
+        let existing_track = check_file_hash_exists(&state.db, &file_hash)
+            .await?
+            .ok_or_else(|| AppError::Internal("Duplicate detected but not found".to_string()))?;
+        
+        return Ok((
+            StatusCode::CONFLICT,
+            Json(TrackResponse::from(existing_track)),
+        ));
+    }
+    
+    let track = track_opt.unwrap();
 
     sqlx::query!(
         r#"
@@ -176,6 +187,8 @@ async fn create_track(
         job_id
     );
 
+    // Upload to S3 BEFORE committing the transaction.
+    // If upload fails, transaction will rollback.
     state
         .s3
         .upload_file(&object_key, file_data.clone())
@@ -183,7 +196,7 @@ async fn create_track(
         .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
 
     tx.commit().await?;
-    tracing::info!("Successfully uploaded file to S3");
+    tracing::info!("Successfully uploaded file to S3 and committed transaction");
     Ok((StatusCode::CREATED, Json(track.into())))
 }
 #[derive(Deserialize)]
