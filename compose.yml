@@ -30,7 +30,7 @@ services:
 
     postgres:
         container_name: database
-        image: postgres:17-alpine
+        image: postgres:18-alpine
         ports:
             - "5432:5432"
         environment:

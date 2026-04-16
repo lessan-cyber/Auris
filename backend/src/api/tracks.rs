@@ -2,6 +2,7 @@ use crate::AppState;
 use crate::errors::{AppError, Result};
 use crate::models::jobs::JobStatus;
 use crate::models::tracks::{Track, TrackResponse, TrackStatus};
+use crate::utils::file_hash::{check_file_hash_exists, generate_file_hash};
 use crate::utils::file_validation::validate_audio_file;
 use axum::extract::Path;
 use axum::{
@@ -11,7 +12,6 @@ use axum::{
     routing::{delete, get, post},
 };
 use serde::Deserialize;
-
 use serde_json;
 
 use std::sync::Arc;
@@ -113,6 +113,9 @@ async fn create_track(
         tracing::error!("Validation failed: Audio file is required");
         AppError::Validation("Audio file is required".to_string())
     })?;
+    let file_data_for_hash = file_data.clone();
+    let file_hash =
+        tokio::task::spawn_blocking(move || generate_file_hash(&file_data_for_hash[..])).await?;
 
     // Validate file type (extension and MIME type)
     let ext = validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
@@ -128,24 +131,43 @@ async fn create_track(
         file_data.len(),
         ext
     );
+
+    // First, try to insert the track atomically.
+    // If it's a duplicate hash, ON CONFLICT DO NOTHING will return no rows.
     let mut tx = state.db.begin().await?;
-    // Insert track into database (status = pending)
-    let track = sqlx::query_as!(
+    let track_opt = sqlx::query_as!(
         Track,
         r#"
-        INSERT INTO tracks (id, title, artist, duration_secs, object_key, status)
-        VALUES ($1, $2, $3, $4, $5, 'pending')
-        RETURNING id, title, artist, duration_secs, object_key,
+        INSERT INTO tracks (id, title, artist, duration_secs, object_key, file_hash, status)
+        VALUES ($1, $2, $3, $4, $5, $6, 'pending')
+        ON CONFLICT (file_hash) DO NOTHING
+        RETURNING id, title, artist, duration_secs, object_key, file_hash,
                   status as "status: TrackStatus", created_at, updated_at
         "#,
         track_id,
         title,
         artist,
-        0.0, // duration unknown until we process it
-        object_key
+        0.0,
+        object_key,
+        file_hash
     )
-    .fetch_one(&mut *tx)
+    .fetch_optional(&mut *tx)
     .await?;
+
+    if track_opt.is_none() {
+        // Duplicate found. We need to fetch the existing track to return it.
+        tx.rollback().await?;
+        let existing_track = check_file_hash_exists(&state.db, &file_hash)
+            .await?
+            .ok_or_else(|| AppError::Internal("Duplicate detected but not found".to_string()))?;
+
+        return Ok((
+            StatusCode::CONFLICT,
+            Json(TrackResponse::from(existing_track)),
+        ));
+    }
+
+    let track = track_opt.unwrap();
 
     sqlx::query!(
         r#"
@@ -165,14 +187,16 @@ async fn create_track(
         job_id
     );
 
+    // Upload to S3 BEFORE committing the transaction.
+    // If upload fails, transaction will rollback.
     state
         .s3
-        .upload_file(&object_key, file_data.to_vec())
+        .upload_file(&object_key, file_data.clone())
         .await
         .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
 
     tx.commit().await?;
-    tracing::info!("Successfully uploaded file to S3");
+    tracing::info!("Successfully uploaded file to S3 and committed transaction");
     Ok((StatusCode::CREATED, Json(track.into())))
 }
 #[derive(Deserialize)]
@@ -198,6 +222,7 @@ async fn list_tracks(
             artist,
             duration_secs,
             object_key,
+            file_hash,
             status as "status: TrackStatus",
             created_at,
             updated_at
@@ -228,6 +253,7 @@ async fn get_track(
             artist,
             duration_secs,
             object_key,
+            file_hash,
             status as "status: TrackStatus",
             created_at,
             updated_at
@@ -283,7 +309,7 @@ async fn delete_track(
     let track = sqlx::query_as!(
         Track,
         r#"
-            SELECT id, title, artist, duration_secs, object_key,
+            SELECT id, title, artist, duration_secs, object_key, file_hash,
                    status as "status: TrackStatus", created_at, updated_at
             FROM tracks
             WHERE id = $1

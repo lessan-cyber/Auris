@@ -71,7 +71,7 @@ impl S3Client {
         }
         Ok(())
     }
-    pub async fn upload_file(&self, key: &str, data: Vec<u8>) -> Result<()> {
+    pub async fn upload_file(&self, key: &str, data: bytes::Bytes) -> Result<()> {
         let size = data.len();
         let body = ByteStream::from(data);
 

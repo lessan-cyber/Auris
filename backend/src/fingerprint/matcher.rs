@@ -103,7 +103,8 @@ pub async fn find_matches(
     tracing::info!("   -> Histogram processing took {:?}", histogram_elapsed);
 
     let mut results: Vec<MatchResult> = track_best_match.into_values().collect();
-    results.sort_by(|a, b| b.match_count.cmp(&a.match_count));
+    results.sort_by_key(|b| std::cmp::Reverse(b.match_count));
+
     // Cap results to top 5
     results.truncate(5);
     Ok(results)

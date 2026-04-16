@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "\n            SELECT\n            id,\n            title,\n            artist,\n            duration_secs,\n            object_key,\n            status as \"status: TrackStatus\",\n            created_at,\n            updated_at\n            FROM tracks\n            WHERE id = $1\n        ",
+  "query": "\n            SELECT\n            id,\n            title,\n            artist,\n            duration_secs,\n            object_key,\n            file_hash,\n            status as \"status: TrackStatus\",\n            created_at,\n            updated_at\n            FROM tracks\n            WHERE id = $1\n        ",
   "describe": {
     "columns": [
       {
@@ -30,6 +30,11 @@
       },
       {
         "ordinal": 5,
+        "name": "file_hash",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
         "name": "status: TrackStatus",
         "type_info": {
           "Custom": {
@@ -46,12 +51,12 @@
         }
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "created_at",
         "type_info": "Timestamptz"
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "updated_at",
         "type_info": "Timestamptz"
       }
@@ -67,10 +72,11 @@
       true,
       false,
       false,
+      true,
       false,
       false,
       false
     ]
   },
-  "hash": "4251e3861c732b5003d03c6e405c36fa1ea354b7a64c6f07863661aec58e3314"
+  "hash": "9715e9910f184f306d3d5732783380eb2e500f46af43447ef89b7adba7525c07"
 }
