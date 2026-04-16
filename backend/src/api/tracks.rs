@@ -375,7 +375,9 @@ async fn update_track(
 
     query_builder.push(" WHERE id = ");
     query_builder.push_bind(id);
-    query_builder.push(" RETURNING id, title, artist, duration_secs, object_key, file_hash, status, created_at, updated_at");
+    query_builder.push(
+        " RETURNING id, title, artist, duration_secs, object_key, file_hash,created_at, updated_at",
+    );
 
     let track = query_builder
         .build_query_as::<Track>()
