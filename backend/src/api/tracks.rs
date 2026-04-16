@@ -132,8 +132,8 @@ async fn create_track(
         ext
     );
 
-    // First, try to insert the track atomically.
-    // If it's a duplicate hash, ON CONFLICT DO NOTHING will return no rows.
+    // 1. Transaction 1: Create the track record and commit immediately.
+    // This releases the DB connection back to the pool during the slow S3 upload.
     let mut tx = state.db.begin().await?;
     let track_opt = sqlx::query_as!(
         Track,
@@ -155,7 +155,6 @@ async fn create_track(
     .await?;
 
     if track_opt.is_none() {
-        // Duplicate found. We need to fetch the existing track to return it.
         tx.rollback().await?;
         let existing_track = check_file_hash_exists(&state.db, &file_hash)
             .await?
@@ -168,7 +167,26 @@ async fn create_track(
     }
 
     let track = track_opt.unwrap();
+    tx.commit().await?;
+    tracing::info!("Track metadata committed (ID: {})", track.id);
 
+    // 2. S3 Upload (No DB connection held)
+    let upload_result = state.s3.upload_file(&object_key, file_data.clone()).await;
+
+    if let Err(e) = upload_result {
+        tracing::error!("S3 upload failed for track {}: {}", track.id, e);
+        // Mark as error in a fresh query
+        sqlx::query!("UPDATE tracks SET status = 'error' WHERE id = $1", track.id)
+            .execute(&state.db)
+            .await?;
+
+        return Err(AppError::Storage(format!(
+            "Failed to upload to storage: {}",
+            e
+        )));
+    }
+
+    // 3. Create the processing job now that the file is safely in S3
     sqlx::query!(
         r#"
         INSERT INTO fingerprint_jobs (id, track_id, status)
@@ -178,27 +196,18 @@ async fn create_track(
         track.id,
         JobStatus::Queued as JobStatus
     )
-    .execute(&mut *tx)
+    .execute(&state.db)
     .await?;
 
     tracing::info!(
-        "Created track {} with job {} (status: pending)",
+        "Successfully uploaded track {} and queued job {}",
         track.id,
         job_id
     );
 
-    // Upload to S3 BEFORE committing the transaction.
-    // If upload fails, transaction will rollback.
-    state
-        .s3
-        .upload_file(&object_key, file_data.clone())
-        .await
-        .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
-
-    tx.commit().await?;
-    tracing::info!("Successfully uploaded file to S3 and committed transaction");
     Ok((StatusCode::CREATED, Json(track.into())))
 }
+
 #[derive(Deserialize)]
 struct Pagination {
     page: Option<i64>,
