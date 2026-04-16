@@ -1,17 +1,18 @@
 use crate::models::tracks::{Track, TrackStatus};
-use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
-pub fn generate_file_hash(file: Vec<u8>) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(&file);
 
-    // Convert the hash to a hex string
+pub fn generate_file_hash(file: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(file);
     let hash_result = hasher.finalize();
-    hash_result
-        .par_iter()
-        .map(|b| format!("{:02x}", b))
-        .collect()
+    
+    let mut s = String::with_capacity(hash_result.len() * 2);
+    for b in hash_result {
+        use std::fmt::Write;
+        write!(&mut s, "{:02x}", b).unwrap();
+    }
+    s
 }
 
 /// Check if a file hash already exists in the database

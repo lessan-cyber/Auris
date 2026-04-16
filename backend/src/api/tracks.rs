@@ -113,9 +113,9 @@ async fn create_track(
         tracing::error!("Validation failed: Audio file is required");
         AppError::Validation("Audio file is required".to_string())
     })?;
-    let file_data_for_hash = file_data.to_vec();
+    let file_data_for_hash = file_data.clone();
     let file_hash =
-        tokio::task::spawn_blocking(move || generate_file_hash(file_data_for_hash)).await?;
+        tokio::task::spawn_blocking(move || generate_file_hash(&file_data_for_hash[..])).await?;
     // After computing file_hash
     if let Some(existing_track) = check_file_hash_exists(&state.db, &file_hash).await? {
         return Ok((
@@ -178,7 +178,7 @@ async fn create_track(
 
     state
         .s3
-        .upload_file(&object_key, file_data.to_vec())
+        .upload_file(&object_key, file_data.clone())
         .await
         .map_err(|e| AppError::Storage(format!("Failed to upload to storage: {}", e)))?;
 
