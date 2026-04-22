@@ -24,3 +24,14 @@ target
 Wang03-shazam.md
 samples.py
 .idea
+
+# Dependencies
+node_modules
+/dist
+/dist-ssr
+*.local
+
+# Logs
+logs
+*.log
+pnpm-debug.log*
