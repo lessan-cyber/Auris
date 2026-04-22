@@ -31,3 +31,8 @@ export interface UpdateTrackRequest {
     title?: string;
     artist?: string;
 }
+
+export interface TrackListResponse {
+    tracks: Track[];
+    total_count: number;
+}

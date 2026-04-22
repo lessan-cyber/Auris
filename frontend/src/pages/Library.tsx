@@ -4,7 +4,7 @@ import { trackApi } from "@/lib/api";
 import { TrackCard } from "@/components/tracks/TrackCard";
 import { SoundMin, NavArrowLeft, NavArrowRight } from "iconoir-react";
 import { Button } from "@/components/ui/button";
-import type { Track } from "@/types";
+import type { Track, TrackListResponse } from "@/types";
 import { UploadNotificationContext } from "@/App";
 import type { UploadNotificationContextType } from "@/App";
 
@@ -22,8 +22,8 @@ export function Library() {
         queryFn: () => trackApi.list(itemsPerPage, page),
     });
 
-    const tracks = (trackData as { tracks: Track[]; total_count: number })?.tracks || [];
-    const totalCount = (trackData as { tracks: Track[]; total_count: number })?.total_count || 0;
+    const tracks = (trackData as TrackListResponse)?.tracks || [];
+    const totalCount = (trackData as TrackListResponse)?.total_count || 0;
 
     const deleteMutation = useMutation({
         mutationFn: trackApi.delete,

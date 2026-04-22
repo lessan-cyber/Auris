@@ -1,16 +1,11 @@
 import axios from "axios";
-import type { Track, MatchResult, UpdateTrackRequest } from "@/types";
+import type { Track, MatchResult, UpdateTrackRequest, TrackListResponse } from "@/types";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 export const api = axios.create({
     baseURL: API_URL,
 });
-
-interface TrackListResponse {
-    tracks: Track[];
-    total_count: number;
-}
 
 export const trackApi = {
     checkHealth: () =>
