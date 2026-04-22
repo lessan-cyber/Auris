@@ -5,7 +5,6 @@ import { Library } from "@/pages/Library";
 import { Upload } from "@/pages/Upload";
 import { Identify } from "@/pages/Identify";
 import { Navbar } from "@/components/layout/Navbar";
-import { useTrackWebSocket } from "@/hooks/useWebSocket";
 import { trackApi } from "@/lib/api";
 import { WarningTriangle, Refresh, SineWave, Database, Cloud } from "iconoir-react";
 import { Button } from "@/components/ui/button";
@@ -29,7 +28,6 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-    const { messages: wsMessages, unreadCount: wsUnreadCount, clearUnread: clearWsUnread } = useTrackWebSocket();
     const [uploadNotifications, setUploadNotifications] = useState<{ track_id: string; status: string; message?: string }[]>([]);
     const [theme, setTheme] = useState<"light" | "dark">(
         () => (localStorage.getItem("theme") as "light" | "dark") || "dark"
@@ -78,12 +76,15 @@ function AppContent() {
         );
     }
 
-    const isUnhealthy = health && health.status !== "ok";
+    // Extract response data and determine display health
+    const responseData = axios.isAxiosError(healthError) ? healthError.response?.data as any : null;
+    const displayHealth = health || responseData;
+    
+    // Determine error states
+    const isUnhealthy = Boolean(displayHealth && displayHealth.status !== "ok");
     const isConnectionError = isBackendDown && (!axios.isAxiosError(healthError) || !healthError.response);
 
     if (isConnectionError || isUnhealthy) {
-        const responseData = axios.isAxiosError(healthError) ? healthError.response?.data as any : null;
-        const displayHealth = health || responseData;
 
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
@@ -140,10 +141,9 @@ function AppContent() {
         <UploadNotificationContext.Provider value={uploadNotificationContextValue}>
             <div className="min-h-screen bg-background transition-colors duration-300">
                 <Navbar
-                    unreadCount={wsUnreadCount + (uploadNotifications.filter(n => n.status === "ready" || n.status === "error").length)}
-                    notifications={[...uploadNotifications, ...wsMessages]}
+                    unreadCount={uploadNotifications.filter(n => n.status === "ready" || n.status === "error").length}
+                    notifications={[...uploadNotifications]}
                     onClear={() => {
-                        clearWsUnread();
                         setUploadNotifications([]);
                     }}
                     theme={theme}
