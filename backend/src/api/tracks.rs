@@ -1,7 +1,9 @@
 use crate::AppState;
 use crate::errors::{AppError, Result};
 use crate::models::jobs::JobStatus;
-use crate::models::tracks::{Track, TrackResponse, TrackStatus, UpdateTrackRequest};
+use crate::models::tracks::{
+    ListTracksResponse, Track, TrackResponse, TrackStatus, UpdateTrackRequest,
+};
 use crate::utils::file_hash::{check_file_hash_exists, generate_file_hash};
 use crate::utils::file_validation::validate_audio_file;
 use axum::extract::Path;
@@ -218,7 +220,7 @@ struct Pagination {
 async fn list_tracks(
     State(state): State<Arc<AppState>>,
     Query(pagination): Query<Pagination>,
-) -> Result<Json<Vec<TrackResponse>>> {
+) -> Result<Json<ListTracksResponse>> {
     let page = pagination.page.unwrap_or(1).max(1);
     let limit = pagination.limit.unwrap_or(10).clamp(1, 100);
     let offset = (page - 1) * limit;
@@ -246,8 +248,22 @@ async fn list_tracks(
     )
     .fetch_all(&mut *tx)
     .await?;
+    let total = sqlx::query!(
+        r#"
+            SELECT COUNT(*)
+            FROM tracks
+        "#
+    )
+    .fetch_one(&mut *tx)
+    .await?
+    .count;
+
     tx.commit().await?;
-    Ok(Json(tracks.into_iter().map(Into::into).collect()))
+    Ok(Json(ListTracksResponse {
+        tracks: tracks.into_iter().map(Into::into).collect(),
+        total_count: total.unwrap_or(0),
+    }))
+    //Ok(Json(tracks.into_iter().map(Into::into).collect()))
 }
 async fn get_track(
     State(state): State<Arc<AppState>>,

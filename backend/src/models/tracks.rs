@@ -64,3 +64,8 @@ impl From<Track> for TrackResponse {
         }
     }
 }
+#[derive(Debug, Serialize)]
+pub struct ListTracksResponse {
+    pub tracks: Vec<TrackResponse>,
+    pub total_count: i64,
+}
