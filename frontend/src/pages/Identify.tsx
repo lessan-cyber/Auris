@@ -12,15 +12,15 @@ export function Identify() {
     const [activeTab, setActiveTab] = useState<"record" | "upload">("record");
     const [error, setError] = useState<string | null>(null);
 
-    const handleIdentify = async (file: File | Blob) => {
+    const handleIdentify = useCallback(async (file: File | Blob) => {
         setLoading(true);
         setError(null);
         setResults(null);
 
-        // Convert Blob to File if needed
+        // Convert Blob to File if needed, preserving the actual MIME type
         const fileToUpload = file instanceof File 
             ? file 
-            : new File([file], "recording.wav", { type: file.type || "audio/wav" });
+            : new File([file], getFilenameFromMimeType(file.type), { type: file.type || 'application/octet-stream' });
 
         try {
             const data = await identifyApi.match(fileToUpload, true);
@@ -35,6 +35,30 @@ export function Identify() {
         } finally {
             setLoading(false);
         }
+    }, []); // Empty dependency array since it only uses setters that are stable
+
+    // Helper function to get filename from MIME type
+    const getFilenameFromMimeType = (mimeType: string | undefined): string => {
+        if (!mimeType) return "recording.unknown";
+        
+        const mimeToExtension: Record<string, string> = {
+            'audio/wav': '.wav',
+            'audio/webm': '.webm',
+            'audio/ogg': '.ogg',
+            'audio/mp4': '.m4a',
+            'audio/mpeg': '.mp3',
+            'audio/aac': '.aac',
+            'audio/flac': '.flac',
+        };
+        
+        for (const [mime, ext] of Object.entries(mimeToExtension)) {
+            if (mimeType.startsWith(mime)) {
+                return `recording${ext}`;
+            }
+        }
+        
+        // Fallback for unknown types
+        return "recording.unknown";
     };
 
     const onDrop = useCallback((accepted: File[], rejected: any[]) => {
