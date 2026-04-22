@@ -10,6 +10,7 @@ import { trackApi } from "@/lib/api";
 import { WarningTriangle, Refresh, SineWave, Database, Cloud } from "iconoir-react";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
+import { Toaster } from "@/components/ui/sonner";
 
 // Create context for upload notifications
 export interface UploadNotificationContextType {
@@ -163,6 +164,7 @@ export default function App() {
         <QueryClientProvider client={queryClient}>
             <BrowserRouter>
                 <AppContent />
+                <Toaster />
             </BrowserRouter>
         </QueryClientProvider>
     );
