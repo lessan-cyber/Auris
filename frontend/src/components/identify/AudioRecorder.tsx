@@ -26,8 +26,12 @@ export function AudioRecorder({ onRecorded }: AudioRecorderProps) {
     return (
         <div className="flex flex-col items-center gap-8 py-12">
             <div className="relative">
-                {/* Recording button */}
+                {/* Recording button */}{" "}
                 <button
+                    type="button"
+                    aria-label={
+                        isRecording ? "Stop recording" : "Start recording"
+                    }
                     onClick={isRecording ? stopRecording : startRecording}
                     className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${
                         isRecording
@@ -41,7 +45,6 @@ export function AudioRecorder({ onRecorded }: AudioRecorderProps) {
                         <Microphone className="w-8 h-8 text-white" />
                     )}
                 </button>
-
                 {/* Progress ring */}
                 {isRecording && (
                     <svg className="absolute -inset-2 w-28 h-28 -rotate-90">
