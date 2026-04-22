@@ -17,6 +17,10 @@ pub struct Settings {
 
     /// Upload limits
     pub max_file_size: usize,
+    
+    /// CORS configuration
+    pub cors_allowed_origins: Vec<String>,
+    pub cors_allow_credentials: bool,
 }
 
 impl Settings {
@@ -41,6 +45,16 @@ impl Settings {
             s3_secret_key: std::env::var("RUSTFS_SECRET_KEY")
                 .context("Missing RUSTFS_SECRET_KEY")?,
             max_file_size,
+            cors_allowed_origins: std::env::var("CORS_ALLOWED_ORIGINS")
+                .unwrap_or_else(|_| "http://localhost:5173,http://localhost:3000".to_string())
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
+            cors_allow_credentials: std::env::var("CORS_ALLOW_CREDENTIALS")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
         })
     }
 }
