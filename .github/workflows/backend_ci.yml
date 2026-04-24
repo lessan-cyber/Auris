@@ -1,0 +1,52 @@
+name: Backend CI
+
+on:
+    push:
+        branches: [main]
+    pull_request:
+        branches: [main]
+
+env:
+    CARGO_TERM_COLOR: always
+    SQLX_OFFLINE: true
+    SQLX_OFFLINE_DIR: backend/.sqlx
+jobs:
+    check:
+        name: Check
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - name: Cargo check
+              run: cargo check --manifest-path backend/Cargo.toml
+
+    test:
+        name: Test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+            - name: Run tests
+              run: cargo test --manifest-path backend/Cargo.toml
+
+    fmt:
+        name: Format
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: rustfmt
+            - name: Check formatting
+              run: cargo fmt --manifest-path backend/Cargo.toml -- --check
+
+    clippy:
+        name: Clippy
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: dtolnay/rust-toolchain@stable
+              with:
+                  components: clippy
+            - name: Clippy check
+              run: cargo clippy --manifest-path backend/Cargo.toml -- -D warnings
