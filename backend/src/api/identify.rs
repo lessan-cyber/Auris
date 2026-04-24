@@ -11,16 +11,16 @@ use crate::{
     utils::file_validation::validate_audio_file,
 };
 use axum::{
-    body::Bytes,
     Router,
+    body::Bytes,
     extract::{Multipart, Query, State},
     http::{HeaderMap, header::CONTENT_TYPE},
     response::Json,
     routing::post,
 };
 use rayon::prelude::*;
-use serde::Serialize;
 use serde::Deserialize;
+use serde::Serialize;
 use std::sync::Arc;
 use std::time::Instant;
 #[derive(Serialize)]

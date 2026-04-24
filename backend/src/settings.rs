@@ -18,7 +18,7 @@ pub struct Settings {
     /// Upload limits
     pub max_file_size: usize,
     pub identify_max_file_size: usize,
-    
+
     /// CORS configuration
     pub cors_allowed_origins: Vec<String>,
     pub cors_allow_credentials: bool,

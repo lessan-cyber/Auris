@@ -5,7 +5,7 @@ pub mod tracks;
 
 use axum::{Router, extract::DefaultBodyLimit, routing::get};
 use std::sync::Arc;
-use tower_http::cors::{CorsLayer, AllowOrigin};
+use tower_http::cors::{AllowOrigin, CorsLayer};
 use tower_http::trace::TraceLayer;
 
 pub fn create_router(state: Arc<AppState>) -> Router {
@@ -30,11 +30,13 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         cors.allow_origin(tower_http::cors::Any)
     } else {
         // Use configured origins
-        let origins = state.settings.cors_allowed_origins
+        let origins = state
+            .settings
+            .cors_allowed_origins
             .iter()
             .filter_map(|origin| origin.parse().ok())
             .collect::<Vec<_>>();
-        
+
         if origins.is_empty() {
             cors.allow_origin(tower_http::cors::Any)
         } else {
