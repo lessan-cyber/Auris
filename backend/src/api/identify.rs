@@ -110,7 +110,7 @@ async fn process_audio_identification(
     // Process sample (same pipeline as ingestion, but we don't store)
     let processing_start = Instant::now();
     let (sample_hashes, sample_duration) = tokio::task::spawn_blocking(move || {
-        let (samples, duration) = decode_audio(audio_data.to_vec(), 8000, Some(&ext))?;
+        let (samples, duration) = decode_audio(audio_data, 8000, Some(&ext))?;
 
         let config = SpectrogramConfig::default();
         let spectrogram = generate_spectrogram(&samples, config)?;

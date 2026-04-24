@@ -39,12 +39,12 @@ export function AudioRecorder({ onRecorded }: AudioRecorderProps) {
             analyser.getByteFrequencyData(dataArray);
 
             // Average down to 40 bars
-            const step = Math.floor(dataArray.length / 40);
+            const step = Math.max(1, Math.floor(dataArray.length / 40));
             const newWaveform = [];
             for (let i = 0; i < 40; i++) {
                 let sum = 0;
                 for (let j = 0; j < step; j++) {
-                    sum += dataArray[i * step + j];
+                    sum += dataArray[i * step + j] ?? 0;
                 }
                 const avg = sum / step;
                 newWaveform.push(Math.max(5, (avg / 255) * 100));

@@ -71,7 +71,19 @@ export function Identify() {
     );
 
     const onDrop = useCallback(
-        (accepted: File[]) => {
+        (accepted: File[], fileRejections: any[]) => {
+            if (fileRejections.length > 0) {
+                const error = fileRejections[0].errors[0];
+                if (error.code === "file-too-large") {
+                    setError("File is too large. Max size is 10MB.");
+                } else if (error.code === "file-invalid-type") {
+                    setError("Invalid file type. Please upload an audio file.");
+                } else {
+                    setError(error.message);
+                }
+                return;
+            }
+
             if (accepted[0]) {
                 handleIdentify(accepted[0]);
             }
@@ -92,6 +104,7 @@ export function Identify() {
             "audio/aac": [".aac"],
         },
         multiple: false,
+        maxSize: 10 * 1024 * 1024, // 10MB
     });
 
     return (

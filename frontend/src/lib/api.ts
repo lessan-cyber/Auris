@@ -6,12 +6,12 @@ import type {
     TrackListResponse,
 } from "@/types";
 
-const API_URL = import.meta.env.API_URL;
+const API_URL = import.meta.env.VITE_API_URL;
 
 function getMimeTypeFromFilename(filename: string): string {
     const lower = filename.toLowerCase();
 
-    if (lower.endsWith(".wav") || lower.endsWith(".x-wav")) return "audio/wav";
+    if (lower.endsWith(".wav")) return "audio/wav";
     if (lower.endsWith(".webm")) return "audio/webm";
     if (lower.endsWith(".ogg")) return "audio/ogg";
     if (lower.endsWith(".m4a") || lower.endsWith(".mp4")) return "audio/mp4";
@@ -59,7 +59,6 @@ export const identifyApi = {
         file: Blob | File,
         options?: { filename?: string; transparency?: boolean },
     ) => {
-        const transparency = options?.transparency ?? false;
         const filename =
             options?.filename ??
             (file instanceof File ? file.name : "recording.wav");
@@ -72,12 +71,12 @@ export const identifyApi = {
                 sample_duration_secs: number;
             }>("/identify/raw", file, {
                 params: {
-                    transparency: transparency ? "true" : undefined,
                     filename,
                 },
                 headers: {
                     "Content-Type": contentType,
                 },
+                timeout: 60000,
             })
             .then((r) => r.data);
     },
