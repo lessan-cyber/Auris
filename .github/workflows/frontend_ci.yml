@@ -7,9 +7,12 @@ on:
         branches: [main]
 
 jobs:
-    install:
-        name: Install dependencies
+    lint:
+        name: Lint
         runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: frontend
         steps:
             - uses: actions/checkout@v4
             - uses: pnpm/action-setup@v4
@@ -20,30 +23,16 @@ jobs:
                   node-version: 20
                   cache: 'pnpm'
             - name: Install dependencies
-              run: pnpm install
-              working-directory: frontend
-
-    lint:
-        name: Lint
-        runs-on: ubuntu-latest
-        needs: install
-        steps:
-            - uses: actions/checkout@v4
-            - uses: pnpm/action-setup@v4
-              with:
-                  version: 9
-            - uses: actions/setup-node@v4
-              with:
-                  node-version: 20
-                  cache: 'pnpm'
+              run: pnpm install --frozen-lockfile
             - name: Run lint
               run: pnpm lint
-              working-directory: frontend
 
     build:
         name: Build
         runs-on: ubuntu-latest
-        needs: install
+        defaults:
+            run:
+                working-directory: frontend
         steps:
             - uses: actions/checkout@v4
             - uses: pnpm/action-setup@v4
@@ -53,6 +42,7 @@ jobs:
               with:
                   node-version: 20
                   cache: 'pnpm'
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
             - name: Build frontend
               run: pnpm build
-              working-directory: frontend
