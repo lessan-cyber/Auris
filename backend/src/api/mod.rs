@@ -55,7 +55,10 @@ pub fn create_router(state: Arc<AppState>) -> Router {
             "/tracks",
             tracks::router().layer(DefaultBodyLimit::max(state.settings.max_file_size)),
         )
-        .nest("/identify", identify::router())
+        .nest(
+            "/identify",
+            identify::router().layer(DefaultBodyLimit::max(state.settings.identify_max_file_size)),
+        )
         .with_state(state)
         .layer(TraceLayer::new_for_http())
         .layer(cors)

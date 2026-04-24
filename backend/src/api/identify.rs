@@ -11,13 +11,16 @@ use crate::{
     utils::file_validation::validate_audio_file,
 };
 use axum::{
+    body::Bytes,
     Router,
-    extract::{Multipart, State},
+    extract::{Multipart, Query, State},
+    http::{HeaderMap, header::CONTENT_TYPE},
     response::Json,
     routing::post,
 };
 use rayon::prelude::*;
 use serde::Serialize;
+use serde::Deserialize;
 use std::sync::Arc;
 use std::time::Instant;
 #[derive(Serialize)]
@@ -33,14 +36,22 @@ pub struct MatchDetail {
     pub match_count: usize,
     pub offset_secs: f32,
 }
-pub fn router() -> Router<Arc<AppState>> {
-    Router::new().route("/", post(identify_track))
+
+#[derive(Deserialize)]
+struct IdentifyRawQuery {
+    filename: Option<String>,
 }
-async fn identify_track(
+
+pub fn router() -> Router<Arc<AppState>> {
+    Router::new()
+        .route("/", post(identify_track_multipart))
+        .route("/raw", post(identify_track_raw))
+}
+
+async fn identify_track_multipart(
     State(state): State<Arc<AppState>>,
     mut multipart: Multipart,
 ) -> Result<Json<IdentifyResponse>> {
-    let start_time = std::time::Instant::now();
     // Extract audio file from multipart
     let mut audio_data = None;
     let mut file_name = None;
@@ -66,13 +77,40 @@ async fn identify_track(
 
     let audio_data =
         audio_data.ok_or_else(|| AppError::Validation("Audio file required".to_string()))?;
+    process_audio_identification(state, audio_data.to_vec(), file_name, content_type).await
+}
 
+async fn identify_track_raw(
+    State(state): State<Arc<AppState>>,
+    Query(query): Query<IdentifyRawQuery>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Json<IdentifyResponse>> {
+    let content_type = headers
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(String::from);
+
+    if body.is_empty() {
+        return Err(AppError::Validation("Audio file required".to_string()));
+    }
+
+    process_audio_identification(state, body.to_vec(), query.filename, content_type).await
+}
+
+async fn process_audio_identification(
+    state: Arc<AppState>,
+    audio_data: Vec<u8>,
+    file_name: Option<String>,
+    content_type: Option<String>,
+) -> Result<Json<IdentifyResponse>> {
+    let start_time = std::time::Instant::now();
     // Validate file type (extension and MIME type)
-    validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
+    let ext = validate_audio_file(file_name.as_ref(), content_type.as_ref())?;
     // Process sample (same pipeline as ingestion, but we don't store)
     let processing_start = Instant::now();
     let (sample_hashes, sample_duration) = tokio::task::spawn_blocking(move || {
-        let (samples, duration) = decode_audio(audio_data.to_vec(), 8000)?;
+        let (samples, duration) = decode_audio(audio_data.to_vec(), 8000, Some(&ext))?;
 
         let config = SpectrogramConfig::default();
         let spectrogram = generate_spectrogram(&samples, config)?;
