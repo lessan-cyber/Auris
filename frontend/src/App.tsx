@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext } from "react";
+import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Library } from "@/pages/Library";
@@ -10,14 +10,7 @@ import { WarningTriangle, Refresh, SineWave, Database, Cloud } from "iconoir-rea
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
-
-// Create context for upload notifications
-export interface UploadNotificationContextType {
-    uploadNotifications: { track_id: string; status: string; message?: string }[];
-    setUploadNotifications: React.Dispatch<React.SetStateAction<{ track_id: string; status: string; message?: string }[]>>;
-}
-
-export const UploadNotificationContext = createContext<UploadNotificationContextType | undefined>(undefined);
+import { UploadNotificationContext } from "@/lib/contexts";
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -77,7 +70,7 @@ function AppContent() {
     }
 
     // Extract response data and determine display health
-    const responseData = axios.isAxiosError(healthError) ? healthError.response?.data as any : null;
+    const responseData = axios.isAxiosError(healthError) ? (healthError.response?.data as { status?: string; database?: string; s3?: string }) : null;
     const displayHealth = health || responseData;
     
     // Determine error states

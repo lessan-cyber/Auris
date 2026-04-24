@@ -1,5 +1,11 @@
 import { useState } from "react";
-import { MusicNote, MoreVert, Trash, EditPencil, InfoCircle } from "iconoir-react";
+import {
+    MusicNote,
+    MoreVert,
+    Trash,
+    EditPencil,
+    InfoCircle,
+} from "iconoir-react";
 import type { Track } from "@/types";
 import {
     DropdownMenu,
@@ -29,29 +35,26 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
     const [title, setTitle] = useState(track.title);
     const [artist, setArtist] = useState(track.artist || "");
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     const handleCopyTrackLink = async () => {
         try {
-            // Show loading toast
             const toastId = toast.loading("🔗 Generating track link...");
 
-            // Get signed URL from backend
             const response = await trackApi.getPresignedUrl(track.id);
             const signedUrl = response.url;
 
-            // Copy to clipboard
             await navigator.clipboard.writeText(signedUrl);
 
-            // Show success toast
             toast.success("📋 Track link copied to clipboard!", {
                 id: toastId,
-                description: `Link expires in ${response.expires_in}`
+                description: "Link copied successfully",
             });
-
         } catch (error) {
             console.error("Failed to get or copy track link:", error);
             toast.error("❌ Failed to get track link", {
-                description: "Please try again later"
+                description: "Please try again later",
             });
         }
     };
@@ -60,7 +63,6 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
         <>
             <div className="bg-card border border-border p-0 h-80 w-full flex flex-col group">
                 <div className="relative h-60 bg-muted/30 overflow-hidden">
-                    {/* Cover image area - ready for embedded audio covers when available */}
                     <div className="w-full h-full flex items-center justify-center">
                         <MusicNote
                             className="w-12 h-12 text-muted-foreground/50"
@@ -68,10 +70,9 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                         />
                     </div>
 
-                    {/* Overlay with menu button */}
                     <div className="absolute top-2 right-2">
                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                            <DropdownMenuTrigger>
                                 <button className="p-1.5 hover:bg-black/20 backdrop-blur-sm rounded-lg transition-opacity">
                                     <MoreVert className="w-4 h-4 text-foreground" />
                                 </button>
@@ -103,7 +104,6 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                     </div>
                 </div>
 
-                {/* Track Info */}
                 <div className="p-4">
                     <h3
                         className="font-medium text-foreground truncate mb-1"
@@ -117,7 +117,6 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                 </div>
             </div>
 
-            {/* Details Dialog */}
             <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
                 <DialogContent className="bg-card border-border max-w-md">
                     <DialogHeader>
@@ -178,8 +177,10 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Confirmation Dialog */}
-            <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+            <Dialog
+                open={deleteConfirmOpen}
+                onOpenChange={setDeleteConfirmOpen}
+            >
                 <DialogContent className="bg-card border-border">
                     <DialogHeader>
                         <DialogTitle className="text-foreground">
@@ -188,23 +189,31 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                     </DialogHeader>
                     <div className="space-y-4 pt-4">
                         <p className="text-sm text-muted-foreground">
-                            Are you sure you want to delete "{track.title}"? This action cannot be undone.
+                            Are you sure you want to delete "{track.title}"?
+                            This action cannot be undone.
                         </p>
                         <div className="flex justify-end gap-2">
                             <Button
                                 variant="outline"
                                 onClick={() => setDeleteConfirmOpen(false)}
+                                disabled={isDeleting}
                             >
                                 Cancel
                             </Button>
                             <Button
                                 variant="destructive"
-                                onClick={() => {
-                                    onDelete(track.id);
-                                    setDeleteConfirmOpen(false);
+                                disabled={isDeleting}
+                                onClick={async () => {
+                                    setIsDeleting(true);
+                                    try {
+                                        onDelete(track.id);
+                                    } catch {
+                                        setIsDeleting(false);
+                                        setDeleteConfirmOpen(false);
+                                    }
                                 }}
                             >
-                                Delete
+                                {isDeleting ? "Deleting..." : "Delete"}
                             </Button>
                         </div>
                     </div>
@@ -227,7 +236,8 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                             <input
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
-                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                disabled={isSaving}
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                             />
                         </div>
                         <div>
@@ -237,26 +247,34 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                             <input
                                 value={artist}
                                 onChange={(e) => setArtist(e.target.value)}
-                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+                                disabled={isSaving}
+                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
                             />
                         </div>
                         <div className="flex justify-end gap-2">
                             <Button
                                 variant="outline"
                                 onClick={() => setEditOpen(false)}
+                                disabled={isSaving}
                             >
                                 Cancel
                             </Button>
                             <Button
-                                onClick={() => {
-                                    onEdit(track.id, {
-                                        title,
-                                        artist: artist || undefined,
-                                    });
-                                    setEditOpen(false);
+                                disabled={isSaving || !title}
+                                onClick={async () => {
+                                    setIsSaving(true);
+                                    try {
+                                        onEdit(track.id, {
+                                            title,
+                                            artist: artist || undefined,
+                                        });
+                                        setEditOpen(false);
+                                    } finally {
+                                        setIsSaving(false);
+                                    }
                                 }}
                             >
-                                Save
+                                {isSaving ? "Saving..." : "Save"}
                             </Button>
                         </div>
                     </div>
@@ -269,5 +287,5 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
 function formatDuration(seconds: number): string {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
