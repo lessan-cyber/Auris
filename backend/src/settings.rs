@@ -51,12 +51,22 @@ impl Settings {
                 .context("Missing RUSTFS_SECRET_KEY")?,
             max_file_size,
             identify_max_file_size,
-            cors_allowed_origins: std::env::var("CORS_ALLOWED_ORIGINS")
-                .unwrap_or_else(|_| "http://localhost:5173,http://localhost:3000".to_string())
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect(),
+            cors_allowed_origins: {
+                let origins = std::env::var("CORS_ALLOWED_ORIGINS")
+                    .unwrap_or_else(|_| "http://localhost:5173,http://localhost:3000".to_string());
+                let list: Vec<String> = origins
+                    .split(',')
+                    .map(|s| s.trim().to_string())
+                    .filter(|s| !s.is_empty())
+                    .collect();
+
+                for origin in &list {
+                    origin
+                        .parse::<axum::http::HeaderValue>()
+                        .map_err(|e| anyhow::anyhow!("Invalid CORS origin '{}': {}", origin, e))?;
+                }
+                list
+            },
             cors_allow_credentials: std::env::var("CORS_ALLOW_CREDENTIALS")
                 .unwrap_or_else(|_| "false".to_string())
                 .parse()

@@ -29,24 +29,26 @@ pub fn create_router(state: Arc<AppState>) -> Router {
         // If no origins specified, allow any (for development)
         cors.allow_origin(tower_http::cors::Any)
     } else {
-        // Use configured origins
+        // Use configured origins. We've already validated these in Settings::from_env
         let origins = state
             .settings
             .cors_allowed_origins
             .iter()
-            .filter_map(|origin| origin.parse().ok())
-            .collect::<Vec<_>>();
+            .map(|origin| origin.parse().unwrap())
+            .collect::<Vec<axum::http::HeaderValue>>();
 
-        if origins.is_empty() {
-            cors.allow_origin(tower_http::cors::Any)
-        } else {
-            cors.allow_origin(tower_http::cors::AllowOrigin::list(origins))
-        }
+        cors.allow_origin(tower_http::cors::AllowOrigin::list(origins))
     };
 
-    // Enable credentials if configured
+    // Enable credentials if configured.
+    // Note: tower-http will panic if allow_credentials(true) is used with Any origin.
     let cors = if state.settings.cors_allow_credentials {
-        cors.allow_credentials(true)
+        if state.settings.cors_allowed_origins.is_empty() {
+            tracing::warn!("CORS_ALLOW_CREDENTIALS=true is ignored because CORS_ALLOWED_ORIGINS is empty (Any)");
+            cors
+        } else {
+            cors.allow_credentials(true)
+        }
     } else {
         cors
     };
