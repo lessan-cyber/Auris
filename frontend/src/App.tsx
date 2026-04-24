@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
 import { UploadNotificationContext } from "@/lib/contexts";
+import { ThemeProvider, useTheme } from "next-themes";
 
 const queryClient = new QueryClient({
     defaultOptions: {
@@ -22,9 +23,7 @@ const queryClient = new QueryClient({
 
 function AppContent() {
     const [uploadNotifications, setUploadNotifications] = useState<{ track_id: string; status: string; message?: string }[]>([]);
-    const [theme, setTheme] = useState<"light" | "dark">(
-        () => (localStorage.getItem("theme") as "light" | "dark") || "dark"
-    );
+    const { theme, setTheme } = useTheme();
 
     const uploadNotificationContextValue = {
         uploadNotifications,
@@ -51,14 +50,7 @@ function AppContent() {
         }
     }, [isBackendDown, healthError, health]);
 
-    useEffect(() => {
-        const root = window.document.documentElement;
-        root.classList.remove("light", "dark");
-        root.classList.add(theme);
-        localStorage.setItem("theme", theme);
-    }, [theme]);
-
-    const toggleTheme = () => setTheme(prev => prev === "light" ? "dark" : "light");
+    const toggleTheme = () => setTheme(theme === "light" ? "dark" : "light");
 
     if (isCheckingHealth) {
         return (
@@ -139,7 +131,7 @@ function AppContent() {
                     onClear={() => {
                         setUploadNotifications([]);
                     }}
-                    theme={theme}
+                    theme={theme as "light" | "dark"}
                     onToggleTheme={toggleTheme}
                 />
                 <Routes>
@@ -154,11 +146,13 @@ function AppContent() {
 
 export default function App() {
     return (
-        <QueryClientProvider client={queryClient}>
-            <BrowserRouter>
-                <AppContent />
-                <Toaster />
-            </BrowserRouter>
-        </QueryClientProvider>
+        <ThemeProvider attribute="class" defaultTheme="dark">
+            <QueryClientProvider client={queryClient}>
+                <BrowserRouter>
+                    <AppContent />
+                    <Toaster />
+                </BrowserRouter>
+            </QueryClientProvider>
+        </ThemeProvider>
     );
 }
