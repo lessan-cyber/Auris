@@ -19,10 +19,10 @@ temp/
 *.swp
 *.swo
 
-# Environment files (except .env which might be needed for build)
+# Environment files — never bake real secrets into the image context.
 .env.local
 .env.*
-!*.env
+!.env.production
 
 # Build outputs (will be generated in Dockerfile)
 dist/

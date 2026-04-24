@@ -21,17 +21,14 @@ COPY . .
 RUN pnpm build
 
 # Stage 2: Production stage
-FROM nginx:alpine
+FROM nginxinc/nginx-unprivileged:alpine
 
 # Copy built assets from builder
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-# Create a non-root user
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 
-USER appuser
 # Expose port 80
 EXPOSE 80
 
