@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { useDropzone } from "react-dropzone";
-import { Upload as UploadIcon, SineWave } from "iconoir-react";
+import { useDropzone, type FileRejection } from "react-dropzone";
+import { Upload as UploadIcon } from "iconoir-react";
 import { Button } from "@/components/ui/button";
 import { trackApi } from "@/lib/api";
 
@@ -13,21 +13,26 @@ export function Upload() {
     const [uploading, setUploading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const onDrop = useCallback((accepted: File[], rejected: any[]) => {
-        if (rejected.length > 0) {
-            setError("Unsupported file type. Please use MP3, WAV, FLAC, OGG, M4A, or AAC.");
-            return;
-        }
-        if (accepted[0]) {
-            setFile(accepted[0]);
-            setError(null);
-            setTitle(accepted[0].name.replace(/\.[^/.]+$/, ""));
-        }
-    }, []);
+    const onDrop = useCallback(
+        (accepted: File[], rejected: FileRejection[]) => {
+            if (rejected.length > 0) {
+                setError(
+                    "Unsupported file type. Please use MP3, WAV, FLAC, OGG, M4A, or AAC.",
+                );
+                return;
+            }
+            if (accepted[0]) {
+                setFile(accepted[0]);
+                setError(null);
+                setTitle(accepted[0].name.replace(/\.[^/.]+$/, ""));
+            }
+        },
+        [],
+    );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: { 
+        accept: {
             "audio/mpeg": [".mp3"],
             "audio/wav": [".wav"],
             "audio/flac": [".flac"],
@@ -51,13 +56,12 @@ export function Upload() {
 
         try {
             const track = await trackApi.create(form);
-            
+
             // Store track ID in localStorage for polling on Library page
             localStorage.setItem("recentUploadTrackId", track.id);
-            
+
             // Navigate immediately to library
             navigate("/");
-                
         } catch (e) {
             console.error(e);
             setUploading(false);
@@ -136,13 +140,17 @@ export function Upload() {
 
                         <Button
                             onClick={handleSubmit}
-                            disabled={uploading || !title}
-                            className="w-full py-6 rounded-xl font-bold text-sm uppercase tracking-widest sketch-shadow-hover active:translate-y-[0px] active:shadow-none transition-all"
+                            disabled={uploading || !file || !title}
+                            className={`w-full py-6 rounded-xl font-bold text-sm uppercase tracking-widest transition-all ${
+                                uploading
+                                    ? "bg-muted text-muted-foreground border-border"
+                                    : "sketch-shadow-hover active:translate-y-0 active:shadow-none"
+                            }`}
                         >
                             {uploading ? (
                                 <span className="flex items-center gap-3">
-                                    <SineWave className="w-5 h-5 animate-spin" />
-                                    Uploading...
+                                    <div className="w-4 h-4 border-2 border-muted-foreground border-t-transparent rounded-full animate-spin" />
+                                    Processing...
                                 </span>
                             ) : (
                                 "Commit to Library"

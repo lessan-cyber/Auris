@@ -27,8 +27,8 @@ samples.py
 
 # Dependencies
 node_modules
-/dist
-/dist-ssr
+dist
+dist-ssr
 *.local
 
 # Logs

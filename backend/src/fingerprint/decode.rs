@@ -11,10 +11,14 @@ use symphonia::core::probe::Hint;
 
 /// Decodes audio file to 8kHz mono f32 samples
 /// Returns (samples, duration_seconds)
-pub fn decode_audio(data: Vec<u8>, target_sample_rate: u32) -> Result<(Vec<f32>, f64)> {
+pub fn decode_audio(
+    data: Vec<u8>,
+    target_sample_rate: u32,
+    extension: Option<&str>,
+) -> Result<(Vec<f32>, f64)> {
     let start = std::time::Instant::now();
     let mss = create_media_source(data);
-    let mut format = probe_format(mss)?;
+    let mut format = probe_format(mss, extension)?;
     let (track_id, decoder) = create_decoder(&mut format)?;
 
     let decode_start = std::time::Instant::now();
@@ -45,8 +49,12 @@ fn create_media_source(data: Vec<u8>) -> MediaSourceStream {
 }
 
 /// Probe the audio format and return the format reader
-fn probe_format(mss: MediaSourceStream) -> Result<Box<dyn FormatReader>> {
-    let hint = Hint::new();
+fn probe_format(mss: MediaSourceStream, extension: Option<&str>) -> Result<Box<dyn FormatReader>> {
+    let mut hint = Hint::new();
+    if let Some(ext) = extension {
+        hint.with_extension(ext);
+    }
+
     let format_opts: FormatOptions = Default::default();
     let metadata_opts: MetadataOptions = Default::default();
 
@@ -240,7 +248,7 @@ mod tests {
         let wav_data = include_bytes!("../../tests/fixtures/440hz_1sec_mono.wav").to_vec();
 
         // Decode it
-        let result = decode_audio(wav_data, 8000);
+        let result = decode_audio(wav_data, 8000, Some("wav"));
         assert!(result.is_ok(), "Should decode WAV file successfully");
 
         let (samples, duration) = result.unwrap();
@@ -258,7 +266,7 @@ mod tests {
         let wav_data = include_bytes!("../../tests/fixtures/440hz_1sec_stereo.wav").to_vec();
 
         // Decode and verify it converts to mono
-        let result = decode_audio(wav_data, 8000);
+        let result = decode_audio(wav_data, 8000, Some("wav"));
         assert!(result.is_ok(), "Should decode stereo WAV file successfully");
 
         let (samples, duration) = result.unwrap();
@@ -273,7 +281,7 @@ mod tests {
     fn test_decode_different_durations() {
         // Test 0.5 second file
         let wav_data = include_bytes!("../../tests/fixtures/880hz_0.5sec_mono.wav").to_vec();
-        let result = decode_audio(wav_data, 8000);
+        let result = decode_audio(wav_data, 8000, Some("wav"));
         assert!(result.is_ok());
 
         let (samples, duration) = result.unwrap();
@@ -294,7 +302,7 @@ mod tests {
         let wav_data = include_bytes!("../../tests/fixtures/silence_0.1sec.wav").to_vec();
 
         // Should decode successfully
-        let result = decode_audio(wav_data, 8000);
+        let result = decode_audio(wav_data, 8000, Some("wav"));
         assert!(result.is_ok(), "Should decode silence successfully");
 
         let (samples, duration) = result.unwrap();
@@ -388,7 +396,7 @@ mod tests {
     fn test_invalid_audio_format() {
         // Test with invalid/empty data
         let invalid_data = vec![0u8; 100]; // Too small to be valid WAV
-        let result = decode_audio(invalid_data, 8000);
+        let result = decode_audio(invalid_data, 8000, None);
         assert!(result.is_err(), "Should fail with invalid audio data");
     }
 }

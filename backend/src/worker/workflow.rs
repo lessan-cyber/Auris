@@ -78,7 +78,7 @@ async fn process_job_with_spectrogram(state: &Arc<AppState>, job: &FingerprintJo
 
     // 2. Decode (blocking)
     let (samples, duration_secs) =
-        tokio::task::spawn_blocking(move || decode_audio(audio_data, 8000)).await??;
+        tokio::task::spawn_blocking(move || decode_audio(audio_data, 8000, None)).await??;
 
     info!("Decoded: {} samples, {:.2}s", samples.len(), duration_secs);
 
@@ -168,7 +168,7 @@ async fn process_job(state: &Arc<AppState>, job: &FingerprintJob) -> Result<()> 
 
     // decode audio
     let (samples, duration_secs) =
-        tokio::task::spawn_blocking(move || decode_audio(audio_data, 8000)).await??;
+        tokio::task::spawn_blocking(move || decode_audio(audio_data, 8000, None)).await??;
 
     info!("Decoded: {} samples, {:.2}s", samples.len(), duration_secs);
 

@@ -3,8 +3,31 @@ import { useDropzone } from "react-dropzone";
 import { AudioRecorder } from "@/components/identify/AudioRecorder";
 import { identifyApi } from "@/lib/api";
 import type { MatchResult } from "@/types";
-import { MusicNote, SineWave, Microphone, Upload } from "iconoir-react";
+import { MusicNote, Microphone, Upload, SineWave } from "iconoir-react";
 import { Badge } from "@/components/ui/badge";
+
+const getFilenameFromMimeType = (mimeType: string | undefined): string => {
+    if (!mimeType) return "recording.unknown";
+
+    const mimeToExtension: Record<string, string> = {
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "audio/webm": ".webm",
+        "audio/ogg": ".ogg",
+        "audio/mp4": ".m4a",
+        "audio/mpeg": ".mp3",
+        "audio/aac": ".aac",
+        "audio/flac": ".flac",
+    };
+
+    for (const [mime, ext] of Object.entries(mimeToExtension)) {
+        if (mimeType.startsWith(mime)) {
+            return `recording${ext}`;
+        }
+    }
+
+    return "recording.unknown";
+};
 
 export function Identify() {
     const [results, setResults] = useState<MatchResult[] | null>(null);
@@ -12,44 +35,65 @@ export function Identify() {
     const [activeTab, setActiveTab] = useState<"record" | "upload">("record");
     const [error, setError] = useState<string | null>(null);
 
-    const handleIdentify = async (file: File | Blob) => {
-        setLoading(true);
-        setError(null);
-        setResults(null);
+    const handleIdentify = useCallback(
+        async (file: File | Blob, filename?: string) => {
+            setLoading(true);
+            setError(null);
+            setResults(null);
 
-        // Convert Blob to File if needed
-        const fileToUpload = file instanceof File 
-            ? file 
-            : new File([file], "recording.wav", { type: file.type || "audio/wav" });
-
-        try {
-            const data = await identifyApi.match(fileToUpload, true);
-            setResults(data.matches);
-            if (data.matches.length === 0) {
-                setError("No matches found in library.");
+            try {
+                const data = await identifyApi.match(file, {
+                    filename:
+                        filename ??
+                        (file instanceof File
+                            ? file.name
+                            : getFilenameFromMimeType(file.type)),
+                });
+                setResults(data.matches);
+                if (data.matches.length === 0) {
+                    setError("No matches found in library.");
+                }
+            } catch (err: unknown) {
+                console.error(err);
+                const e = err as {
+                    response?: { data?: { error?: string; message?: string } };
+                };
+                const serverMessage =
+                    e.response?.data?.error || e.response?.data?.message;
+                setError(
+                    serverMessage || "Identification failed. Please try again.",
+                );
+            } finally {
+                setLoading(false);
             }
-        } catch (e: any) {
-            console.error(e);
-            const serverMessage = e.response?.data?.error || e.response?.data?.message;
-            setError(serverMessage || "Identification failed. Please try again.");
-        } finally {
-            setLoading(false);
-        }
-    };
+        },
+        [],
+    );
 
-    const onDrop = useCallback((accepted: File[], rejected: any[]) => {
-        if (rejected.length > 0) {
-            setError("Unsupported file type. Please use MP3, WAV, FLAC, OGG, M4A, or AAC.");
-            return;
-        }
-        if (accepted[0]) {
-            handleIdentify(accepted[0]);
-        }
-    }, []);
+    const onDrop = useCallback(
+        (accepted: File[], fileRejections: any[]) => {
+            if (fileRejections.length > 0) {
+                const error = fileRejections[0].errors[0];
+                if (error.code === "file-too-large") {
+                    setError("File is too large. Max size is 10MB.");
+                } else if (error.code === "file-invalid-type") {
+                    setError("Invalid file type. Please upload an audio file.");
+                } else {
+                    setError(error.message);
+                }
+                return;
+            }
+
+            if (accepted[0]) {
+                handleIdentify(accepted[0]);
+            }
+        },
+        [handleIdentify],
+    );
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
-        accept: { 
+        accept: {
             "audio/mpeg": [".mp3"],
             "audio/wav": [".wav"],
             "audio/flac": [".flac"],
@@ -60,6 +104,7 @@ export function Identify() {
             "audio/aac": [".aac"],
         },
         multiple: false,
+        maxSize: 10 * 1024 * 1024, // 10MB
     });
 
     return (
@@ -163,7 +208,10 @@ export function Identify() {
                                 </p>
                             </div>
                             <div className="text-right">
-                                <Badge variant="secondary" className="mb-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors">
+                                <Badge
+                                    variant="secondary"
+                                    className="mb-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/20 transition-colors"
+                                >
                                     {(match.confidence * 100).toFixed(0)}% match
                                 </Badge>
                                 <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground opacity-60">

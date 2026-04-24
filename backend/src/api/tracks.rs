@@ -360,7 +360,7 @@ async fn delete_track(
     )
     .execute(&mut *tx)
     .await?;
-
+    tx.commit().await?;
     Ok(Json(track.into()))
 }
 
@@ -392,7 +392,7 @@ async fn update_track(
     query_builder.push(" WHERE id = ");
     query_builder.push_bind(id);
     query_builder.push(
-        " RETURNING id, title, artist, duration_secs, object_key, file_hash,created_at, updated_at",
+        " RETURNING id, title, artist, duration_secs, object_key, file_hash, status, created_at, updated_at",
     );
 
     let track = query_builder

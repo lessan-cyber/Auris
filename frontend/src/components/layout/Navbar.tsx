@@ -1,5 +1,12 @@
 import { Link } from "react-router-dom";
-import { MusicNote, Microphone, PlusCircle, Bell, SunLight, HalfMoon } from "iconoir-react";
+import {
+    MusicNote,
+    Microphone,
+    PlusCircle,
+    Bell,
+    SunLight,
+    HalfMoon,
+} from "iconoir-react";
 import { Badge } from "@/components/ui/badge";
 import {
     DropdownMenu,
@@ -16,7 +23,13 @@ interface NavbarProps {
     onToggleTheme: () => void;
 }
 
-export function Navbar({ unreadCount, notifications, onClear, theme, onToggleTheme }: NavbarProps) {
+export function Navbar({
+    unreadCount,
+    notifications,
+    onClear,
+    theme,
+    onToggleTheme,
+}: NavbarProps) {
     return (
         <nav className="border-b-[1.5px] border-border bg-background/60 backdrop-blur-xl sticky top-0 z-50">
             <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -103,11 +116,13 @@ export function Navbar({ unreadCount, notifications, onClear, theme, onToggleThe
                                             className="flex flex-col items-start gap-1 py-3"
                                         >
                                             <span className="text-sm font-medium text-neutral-800">
-                                                {n.status === "completed"
-                                                    ? "✅ Ready"
-                                                    : n.status === "failed"
-                                                      ? "❌ Failed"
-                                                      : "⏳ Processing"}
+                                                {n.status === "completed" ||
+                                                n.status === "ready"
+                                                    ? "Ready"
+                                                    : n.status === "failed" ||
+                                                        n.status === "error"
+                                                      ? "Failed"
+                                                      : "Processing"}
                                             </span>
                                             <span className="text-xs text-neutral-500 truncate w-full">
                                                 {n.message ||

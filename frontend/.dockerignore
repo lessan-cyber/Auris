@@ -1,0 +1,41 @@
+# Frontend specific Docker ignore patterns
+
+# Git
+.git
+.gitignore
+
+# Node modules (will be installed in Dockerfile)
+node_modules/
+.pnpm-store/
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files — never bake real secrets into the image context.
+.env.local
+.env.*
+!.env.production
+
+# Build outputs (will be generated in Dockerfile)
+dist/
+
+# Coverage reports
+coverage/
+
+# Documentation
+docs/
+
+# OS specific files
+.DS_Store
+Thumbs.db
+
+# TypeScript cache
+tsconfig.tsbuildinfo

@@ -1,0 +1,39 @@
+# General Docker ignore patterns
+
+# Git
+.git
+.gitignore
+
+# Node modules and build artifacts
+node_modules/
+.pnpm-store/
+
+# Logs and temporary files
+*.log
+tmp/
+temp/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment files
+.env
+.env.local
+.env.*
+
+# Build outputs
+dist/
+build/
+
+# Coverage reports
+coverage/
+
+# Documentation
+docs/
+
+# OS specific files
+.DS_Store
+Thumbs.db
