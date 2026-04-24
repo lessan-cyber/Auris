@@ -44,7 +44,9 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     // Note: tower-http will panic if allow_credentials(true) is used with Any origin.
     let cors = if state.settings.cors_allow_credentials {
         if state.settings.cors_allowed_origins.is_empty() {
-            tracing::warn!("CORS_ALLOW_CREDENTIALS=true is ignored because CORS_ALLOWED_ORIGINS is empty (Any)");
+            tracing::warn!(
+                "CORS_ALLOW_CREDENTIALS=true is ignored because CORS_ALLOWED_ORIGINS is empty (Any)"
+            );
             cors
         } else {
             cors.allow_credentials(true)

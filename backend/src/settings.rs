@@ -2,6 +2,8 @@ use anyhow::{Context, Result};
 use serde::Deserialize;
 use std::net::SocketAddr;
 
+use crate::utils::cors::parse_cors_origins;
+
 #[derive(Deserialize, Clone)]
 #[allow(dead_code)]
 pub struct Settings {
@@ -54,23 +56,12 @@ impl Settings {
             cors_allowed_origins: {
                 let origins = std::env::var("CORS_ALLOWED_ORIGINS")
                     .unwrap_or_else(|_| "http://localhost:5173,http://localhost:3000".to_string());
-                let list: Vec<String> = origins
-                    .split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-
-                for origin in &list {
-                    origin
-                        .parse::<axum::http::HeaderValue>()
-                        .map_err(|e| anyhow::anyhow!("Invalid CORS origin '{}': {}", origin, e))?;
-                }
-                list
+                parse_cors_origins(&origins)?
             },
             cors_allow_credentials: std::env::var("CORS_ALLOW_CREDENTIALS")
                 .unwrap_or_else(|_| "false".to_string())
                 .parse()
-                .unwrap_or(false),
+                .context("Invalid CORS_ALLOW_CREDENTIALS (expected 'true' or 'false')")?,
         })
     }
 }
