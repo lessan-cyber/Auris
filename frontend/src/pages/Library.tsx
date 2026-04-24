@@ -191,9 +191,9 @@ export function Library() {
                             <TrackCard
                                 key={track.id}
                                 track={track}
-                                onDelete={(id) => deleteMutation.mutate(id)}
+                                onDelete={(id) => deleteMutation.mutateAsync(id)}
                                 onEdit={(id, data) =>
-                                    updateMutation.mutate({ id, data })
+                                    updateMutation.mutateAsync({ id, data })
                                 }
                             />
                         ))}

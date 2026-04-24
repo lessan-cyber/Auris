@@ -25,8 +25,8 @@ import { trackApi } from "@/lib/api";
 
 interface TrackCardProps {
     track: Track;
-    onDelete: (id: string) => void;
-    onEdit: (id: string, data: { title: string; artist?: string }) => void;
+    onDelete: (id: string) => Promise<void>;
+    onEdit: (id: string, data: { title: string; artist?: string }) => Promise<void>;
 }
 
 export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
@@ -206,10 +206,13 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                                 onClick={async () => {
                                     setIsDeleting(true);
                                     try {
-                                        onDelete(track.id);
-                                    } catch {
-                                        setIsDeleting(false);
+                                        await onDelete(track.id);
                                         setDeleteConfirmOpen(false);
+                                    } catch (error) {
+                                        console.error("Failed to delete track:", error);
+                                        toast.error("❌ Failed to delete track");
+                                    } finally {
+                                        setIsDeleting(false);
                                     }
                                 }}
                             >
@@ -264,11 +267,15 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                                 onClick={async () => {
                                     setIsSaving(true);
                                     try {
-                                        onEdit(track.id, {
+                                        await onEdit(track.id, {
                                             title,
                                             artist: artist || undefined,
                                         });
                                         setEditOpen(false);
+                                        toast.success("✅ Track updated successfully");
+                                    } catch (error) {
+                                        console.error("Failed to update track:", error);
+                                        toast.error("❌ Failed to update track");
                                     } finally {
                                         setIsSaving(false);
                                     }
