@@ -26,7 +26,10 @@ import { trackApi } from "@/lib/api";
 interface TrackCardProps {
     track: Track;
     onDelete: (id: string) => Promise<void>;
-    onEdit: (id: string, data: { title: string; artist?: string }) => Promise<void>;
+    onEdit: (
+        id: string,
+        data: { title: string; artist?: string },
+    ) => Promise<void>;
 }
 
 export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
@@ -37,11 +40,9 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
     const [artist, setArtist] = useState(track.artist || "");
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-
+    const toastId = toast.loading("🔗 Generating track link...");
     const handleCopyTrackLink = async () => {
         try {
-            const toastId = toast.loading("🔗 Generating track link...");
-
             const response = await trackApi.getPresignedUrl(track.id);
             const signedUrl = response.url;
 
@@ -209,8 +210,18 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                                         await onDelete(track.id);
                                         setDeleteConfirmOpen(false);
                                     } catch (error) {
-                                        console.error("Failed to delete track:", error);
-                                        toast.error("❌ Failed to delete track");
+                                        console.error(
+                                            "Failed to get or copy track link:",
+                                            error,
+                                        );
+                                        toast.error(
+                                            "Failed to get track link",
+                                            {
+                                                id: toastId,
+                                                description:
+                                                    "Please try again later",
+                                            },
+                                        );
                                     } finally {
                                         setIsDeleting(false);
                                     }
@@ -263,19 +274,26 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                                 Cancel
                             </Button>
                             <Button
-                                disabled={isSaving || !title}
+                                disabled={isSaving || !title.trim()}
                                 onClick={async () => {
                                     setIsSaving(true);
                                     try {
                                         await onEdit(track.id, {
-                                            title,
-                                            artist: artist || undefined,
+                                            title: title.trim(),
+                                            artist: artist.trim() || undefined,
                                         });
                                         setEditOpen(false);
-                                        toast.success("✅ Track updated successfully");
+                                        toast.success(
+                                            "✅ Track updated successfully",
+                                        );
                                     } catch (error) {
-                                        console.error("Failed to update track:", error);
-                                        toast.error("❌ Failed to update track");
+                                        console.error(
+                                            "Failed to update track:",
+                                            error,
+                                        );
+                                        toast.error(
+                                            "❌ Failed to update track",
+                                        );
                                     } finally {
                                         setIsSaving(false);
                                     }

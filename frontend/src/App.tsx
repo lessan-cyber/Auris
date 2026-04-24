@@ -1,12 +1,22 @@
 import { useState, useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import {
+    QueryClient,
+    QueryClientProvider,
+    useQuery,
+} from "@tanstack/react-query";
 import { Library } from "@/pages/Library";
 import { Upload } from "@/pages/Upload";
 import { Identify } from "@/pages/Identify";
 import { Navbar } from "@/components/layout/Navbar";
 import { trackApi } from "@/lib/api";
-import { WarningTriangle, Refresh, SineWave, Database, Cloud } from "iconoir-react";
+import {
+    WarningTriangle,
+    Refresh,
+    SineWave,
+    Database,
+    Cloud,
+} from "iconoir-react";
 import { Button } from "@/components/ui/button";
 import axios from "axios";
 import { Toaster } from "@/components/ui/sonner";
@@ -22,20 +32,22 @@ const queryClient = new QueryClient({
 });
 
 function AppContent() {
-    const [uploadNotifications, setUploadNotifications] = useState<{ track_id: string; status: string; message?: string }[]>([]);
-    const { theme, setTheme } = useTheme();
+    const [uploadNotifications, setUploadNotifications] = useState<
+        { track_id: string; status: string; message?: string }[]
+    >([]);
+    const { resolvedTheme, setTheme } = useTheme();
 
     const uploadNotificationContextValue = {
         uploadNotifications,
-        setUploadNotifications
+        setUploadNotifications,
     };
 
-    const { 
-        data: health, 
-        isLoading: isCheckingHealth, 
+    const {
+        data: health,
+        isLoading: isCheckingHealth,
         isError: isBackendDown,
         error: healthError,
-        refetch: retryHealthCheck 
+        refetch: retryHealthCheck,
     } = useQuery({
         queryKey: ["health"],
         queryFn: trackApi.checkHealth,
@@ -50,27 +62,40 @@ function AppContent() {
         }
     }, [isBackendDown, healthError, health]);
 
-    const toggleTheme = () => setTheme(theme === "light" ? "dark" : "light");
+    const toggleTheme = () => {
+        // Use resolvedTheme to determine the next theme, falling back to "dark" if system theme is active
+        const nextTheme = resolvedTheme === "light" ? "dark" : "light";
+        setTheme(nextTheme);
+    };
 
     if (isCheckingHealth) {
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
                 <SineWave className="w-12 h-12 text-primary animate-pulse" />
-                <p className="text-muted-foreground animate-pulse font-medium">Connecting to Auris...</p>
+                <p className="text-muted-foreground animate-pulse font-medium">
+                    Connecting to Auris...
+                </p>
             </div>
         );
     }
 
     // Extract response data and determine display health
-    const responseData = axios.isAxiosError(healthError) ? (healthError.response?.data as { status?: string; database?: string; s3?: string }) : null;
+    const responseData = axios.isAxiosError(healthError)
+        ? (healthError.response?.data as {
+              status?: string;
+              database?: string;
+              s3?: string;
+          })
+        : null;
     const displayHealth = health || responseData;
-    
+
     // Determine error states
     const isUnhealthy = Boolean(displayHealth && displayHealth.status !== "ok");
-    const isConnectionError = isBackendDown && (!axios.isAxiosError(healthError) || !healthError.response);
+    const isConnectionError =
+        isBackendDown &&
+        (!axios.isAxiosError(healthError) || !healthError.response);
 
     if (isConnectionError || isUnhealthy) {
-
         return (
             <div className="min-h-screen bg-background flex flex-col items-center justify-center p-6 text-center">
                 <div className="w-20 h-20 rounded-3xl bg-destructive/10 flex items-center justify-center mb-6">
@@ -80,37 +105,59 @@ function AppContent() {
                     {isUnhealthy ? "System Unhealthy" : "Backend Unreachable"}
                 </h1>
                 <p className="text-muted-foreground max-w-sm mb-4">
-                    {isUnhealthy 
+                    {isUnhealthy
                         ? "The server is running but some services are currently unavailable."
                         : "We couldn't connect to the Auris backend. Please ensure the server is running at http://localhost:8000."}
                 </p>
 
                 {isBackendDown && (
                     <div className="bg-red-500/10 text-red-500 text-[10px] font-mono p-2 rounded-lg mb-8 max-w-sm overflow-auto">
-                        {healthError instanceof Error ? healthError.message : String(healthError)}
+                        {healthError instanceof Error
+                            ? healthError.message
+                            : String(healthError)}
                     </div>
                 )}
 
                 {displayHealth && (
                     <div className="grid grid-cols-2 gap-4 mb-8 w-full max-w-xs mx-auto">
-                        <div className={`p-3 rounded-xl border ${displayHealth.database === "up" ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
-                            <Database className={`w-5 h-5 mx-auto mb-1 ${displayHealth.database === "up" ? "text-emerald-500" : "text-red-500"}`} />
-                            <p className="text-[10px] uppercase tracking-wider font-bold opacity-50">Database</p>
-                            <p className={`text-xs font-semibold ${displayHealth.database === "up" ? "text-emerald-500" : "text-red-500"}`}>
-                                {displayHealth.database === "up" ? "ONLINE" : "OFFLINE"}
+                        <div
+                            className={`p-3 rounded-xl border ${displayHealth.database === "up" ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}
+                        >
+                            <Database
+                                className={`w-5 h-5 mx-auto mb-1 ${displayHealth.database === "up" ? "text-emerald-500" : "text-red-500"}`}
+                            />
+                            <p className="text-[10px] uppercase tracking-wider font-bold opacity-50">
+                                Database
+                            </p>
+                            <p
+                                className={`text-xs font-semibold ${displayHealth.database === "up" ? "text-emerald-500" : "text-red-500"}`}
+                            >
+                                {displayHealth.database === "up"
+                                    ? "ONLINE"
+                                    : "OFFLINE"}
                             </p>
                         </div>
-                        <div className={`p-3 rounded-xl border ${displayHealth.s3 === "up" ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}>
-                            <Cloud className={`w-5 h-5 mx-auto mb-1 ${displayHealth.s3 === "up" ? "text-emerald-500" : "text-red-500"}`} />
-                            <p className="text-[10px] uppercase tracking-wider font-bold opacity-50">Storage (S3)</p>
-                            <p className={`text-xs font-semibold ${displayHealth.s3 === "up" ? "text-emerald-500" : "text-red-500"}`}>
-                                {displayHealth.s3 === "up" ? "ONLINE" : "OFFLINE"}
+                        <div
+                            className={`p-3 rounded-xl border ${displayHealth.s3 === "up" ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"}`}
+                        >
+                            <Cloud
+                                className={`w-5 h-5 mx-auto mb-1 ${displayHealth.s3 === "up" ? "text-emerald-500" : "text-red-500"}`}
+                            />
+                            <p className="text-[10px] uppercase tracking-wider font-bold opacity-50">
+                                Storage (S3)
+                            </p>
+                            <p
+                                className={`text-xs font-semibold ${displayHealth.s3 === "up" ? "text-emerald-500" : "text-red-500"}`}
+                            >
+                                {displayHealth.s3 === "up"
+                                    ? "ONLINE"
+                                    : "OFFLINE"}
                             </p>
                         </div>
                     </div>
                 )}
 
-                <Button 
+                <Button
                     onClick={() => retryHealthCheck()}
                     variant="outline"
                     className="gap-2"
@@ -123,15 +170,21 @@ function AppContent() {
     }
 
     return (
-        <UploadNotificationContext.Provider value={uploadNotificationContextValue}>
+        <UploadNotificationContext.Provider
+            value={uploadNotificationContextValue}
+        >
             <div className="min-h-screen bg-background transition-colors duration-300">
                 <Navbar
-                    unreadCount={uploadNotifications.filter(n => n.status === "ready" || n.status === "error").length}
+                    unreadCount={
+                        uploadNotifications.filter(
+                            (n) => n.status === "ready" || n.status === "error",
+                        ).length
+                    }
                     notifications={[...uploadNotifications]}
                     onClear={() => {
                         setUploadNotifications([]);
                     }}
-                    theme={theme as "light" | "dark"}
+                    theme={resolvedTheme as "light" | "dark"}
                     onToggleTheme={toggleTheme}
                 />
                 <Routes>
