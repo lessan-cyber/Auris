@@ -222,6 +222,8 @@ Requirements: Docker, Rust toolchain, pnpm.
 ```bash
 # setup environement variable
 mv .env.example .env
+# after setting up the variables make a copy to the frontend
+cp .env ./frontend
 # start the backing services (database and storage)
 docker compose up postgres rustfs
 # run migrations 
