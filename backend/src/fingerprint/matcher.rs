@@ -146,7 +146,7 @@ pub async fn enrich_matches(
     let track_ids: Vec<Uuid> = matches.iter().map(|m| m.track_id).collect();
     let tracks = sqlx::query_as::<_, Track>(
         r#"
-        SELECT id, title, artist, duration_secs, object_key, status, created_at, updated_at
+        SELECT id, title, artist, duration_secs, object_key, status, created_at, updated_at, file_hash
         FROM tracks
         WHERE id = ANY($1)
         "#,

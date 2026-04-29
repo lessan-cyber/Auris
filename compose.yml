@@ -1,12 +1,10 @@
 ---
 services:
     api:
-        build:
-            context: ./backend
-            dockerfile: Dockerfile
+        image: ghcr.io/lessan-cyber/auris/backend:latest
         container_name: auris-api
         ports:
-            - "8000:8000"
+            - "8001:8000"
         environment:
             - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
             - RUSTFS_ENDPOINT=http://rustfs:9000
@@ -15,12 +13,15 @@ services:
             - RUSTFS_BUCKET_NAME=${RUSTFS_BUCKET_NAME}
             - BIND_ADDR=0.0.0.0:8000
             - RUST_LOG=info
+            - CORS_ALLOWED_ORIGINS=http://localhost:8000
         command: ["backend", "--execution-mode", "api"]
         depends_on:
             postgres:
                 condition: service_healthy
             rustfs:
                 condition: service_healthy
+            migrate:
+                condition: service_completed_successfully
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
             interval: 10s
@@ -28,9 +29,7 @@ services:
             retries: 5
 
     worker:
-        build:
-            context: ./backend
-            dockerfile: Dockerfile
+        image: ghcr.io/lessan-cyber/auris/backend:latest
         container_name: auris-worker
         environment:
             - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -45,6 +44,35 @@ services:
                 condition: service_healthy
             rustfs:
                 condition: service_healthy
+            migrate:
+                condition: service_completed_successfully
+
+    migrate:
+        image: ghcr.io/lessan-cyber/auris/backend:latest
+        container_name: auris-migrator
+        environment:
+            - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+            - RUSTFS_ENDPOINT=http://rustfs:9000
+            - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
+            - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
+            - RUSTFS_BUCKET_NAME=${RUSTFS_BUCKET_NAME}
+            - RUST_LOG=info
+        command: ["backend", "--execution-mode", "migrate"]
+        depends_on:
+            postgres:
+                condition: service_healthy
+            rustfs:
+                condition: service_healthy
+
+    frontend:
+        image: ghcr.io/lessan-cyber/auris/frontend:latest
+        container_name: auris-frontend
+        ports:
+            - "8000:8080"
+        volumes:
+            - ./frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+        depends_on:
+            - api
 
     postgres:
         container_name: database
@@ -56,7 +84,7 @@ services:
             - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
             - POSTGRES_DB=${POSTGRES_DB}
         volumes:
-            - postgres_data:/var/lib/postgresql/data
+            - postgres_data:/var/lib/postgresql
         healthcheck:
             test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
             interval: 5s

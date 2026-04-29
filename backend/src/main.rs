@@ -19,7 +19,6 @@ pub struct AppState {
     pub db: sqlx::PgPool,
     pub s3: config::S3Client,
     pub settings: settings::Settings,
-    pub ws_clients: Arc<DashMap<Uuid, mpsc::UnboundedSender<crate::api::websocket::WsMessage>>>,
 }
 
 #[tokio::main]
@@ -49,10 +48,12 @@ async fn main() -> Result<()> {
         db: db_pool,
         s3: s3_client,
         settings: settings.clone(),
-        ws_clients: Arc::new(DashMap::new()),
     });
 
     match mode.execution_mode {
+        ExecutionMode::Migrate => {
+            config::run_migrations(&state.db).await?;
+        }
         ExecutionMode::Worker => {
             // Run only the worker
             worker::workflow::run_worker(state).await?;

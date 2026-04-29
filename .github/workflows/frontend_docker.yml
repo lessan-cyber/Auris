@@ -1,4 +1,4 @@
-name: Build and Push Docker Image
+name: Build and Push Frontend Docker Image
 
 on:
     push:
@@ -6,7 +6,7 @@ on:
 
 env:
     REGISTRY: ghcr.io
-    IMAGE_NAME: ${{ github.repository }}/backend
+    IMAGE_NAME: ${{ github.repository }}/frontend
 
 jobs:
     build-and-push:
@@ -42,7 +42,7 @@ jobs:
             - name: Build and push Docker image
               uses: docker/build-push-action@v5
               with:
-                  context: ./backend
+                  context: ./frontend
                   push: true
                   tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}

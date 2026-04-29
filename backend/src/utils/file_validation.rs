@@ -24,7 +24,7 @@ pub fn validate_audio_file(
         .map(|s| s.to_lowercase())
         .unwrap_or_else(|| "bin".to_string());
 
-    let allowed_extensions = ["mp3", "wav", "flac", "ogg", "m4a", "aac"];
+    let allowed_extensions = ["mp3", "wav", "flac", "ogg", "m4a", "aac", "webm"];
     let is_valid_ext = allowed_extensions.contains(&ext.as_str());
 
     // Validate MIME type
@@ -40,7 +40,7 @@ pub fn validate_audio_file(
             content_type
         );
         return Err(AppError::Validation(format!(
-            "Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A AAC).",
+            "Unsupported file type: {}. Please upload a supported audio file (MP3, WAV, FLAC, OGG, M4A, AAC, WEBM).",
             ext
         )));
     }
