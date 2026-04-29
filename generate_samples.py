@@ -21,7 +21,7 @@ def create_variants(input_a, output_dir, input_b=None):
         os.makedirs(output_dir)
 
     # 1. Create Base/Clean Mix
-    base_file = os.path.join(output_dir, "00_clean_target.mp3")
+    base_file = os.path.join(output_dir, "clean_target.mp3")
     if input_b:
         print(f"Mixing {input_a} and {input_b}...")
         # Mixes two tracks equally and takes 15 seconds
@@ -52,7 +52,7 @@ def create_variants(input_a, output_dir, input_b=None):
     run_ffmpeg(
         f'ffmpeg -y -i {base_file} -af "highpass=f=300, lowpass=f=3000, volume=1.5" {output_dir}/var_phone.mp3'
     )
-    # 5. Variant: Radio/Phone Effect (Bandpass + Compression)
+    # 6. Variant: Radio/Phone Effect (Bandpass + Compression)
     print("Generating Worst variant...")
     run_ffmpeg(
         f'ffmpeg -y -i "{base_file}" -f lavfi -i "anoisesrc=a=0.1:c=white" -filter_complex '
