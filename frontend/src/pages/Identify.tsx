@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useDropzone } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import { AudioRecorder } from "@/components/identify/AudioRecorder";
 import { identifyApi } from "@/lib/api";
 import type { MatchResult } from "@/types";
@@ -71,7 +71,7 @@ export function Identify() {
     );
 
     const onDrop = useCallback(
-        (accepted: File[], fileRejections: any[]) => {
+        (accepted: File[], fileRejections: FileRejection[]) => {
             if (fileRejections.length > 0) {
                 const error = fileRejections[0].errors[0];
                 if (error.code === "file-too-large") {
