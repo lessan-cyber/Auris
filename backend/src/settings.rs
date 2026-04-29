@@ -30,7 +30,7 @@ impl Settings {
     pub fn from_env() -> Result<Self> {
         dotenvy::dotenv().ok();
         let bind_addr = std::env::var("BIND_ADDR")
-            .unwrap_or_else(|_| "0.0.0.0:8000".to_string())
+            .unwrap_or_else(|_| "127.0.0.1:8000".to_string())
             .parse()
             .context("Invalid bind addr")?;
         let max_file_size = std::env::var("MAX_FILE_SIZE")
@@ -55,7 +55,7 @@ impl Settings {
             identify_max_file_size,
             cors_allowed_origins: {
                 let origins = std::env::var("CORS_ALLOWED_ORIGINS")
-                    .unwrap_or_else(|_| "http://localhost:5173,http://localhost:3000".to_string());
+                    .unwrap_or_else(|_| "http://localhost:5173".to_string());
                 parse_cors_origins(&origins)?
             },
             cors_allow_credentials: std::env::var("CORS_ALLOW_CREDENTIALS")
