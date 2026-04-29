@@ -4,6 +4,7 @@ use clap::{Parser, ValueEnum};
 pub enum ExecutionMode {
     Api,
     Worker,
+    Migrate,
 }
 
 #[derive(Parser)]

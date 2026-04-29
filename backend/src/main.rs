@@ -51,6 +51,9 @@ async fn main() -> Result<()> {
     });
 
     match mode.execution_mode {
+        ExecutionMode::Migrate => {
+            config::run_migrations(&state.db).await?;
+        }
         ExecutionMode::Worker => {
             // Run only the worker
             worker::workflow::run_worker(state).await?;

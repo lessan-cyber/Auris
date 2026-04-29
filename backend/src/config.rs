@@ -20,6 +20,13 @@ pub async fn check_connection(pool: &PgPool) -> Result<()> {
     Ok(())
 }
 
+pub async fn run_migrations(pool: &PgPool) -> Result<()> {
+    info!("Running database migrations...");
+    sqlx::migrate!("./migrations").run(pool).await?;
+    info!("Migrations completed successfully");
+    Ok(())
+}
+
 pub struct S3Client {
     pub client: Client,
     pub bucket_name: String,

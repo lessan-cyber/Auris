@@ -1,9 +1,7 @@
 ---
 services:
     api:
-        build:
-            context: ./backend
-            dockerfile: Dockerfile
+        image: ghcr.io/lessan-cyber/auris/backend:latest
         container_name: auris-api
         ports:
             - "8000:8000"
@@ -21,6 +19,8 @@ services:
                 condition: service_healthy
             rustfs:
                 condition: service_healthy
+            migrate:
+                condition: service_completed_successfully
         healthcheck:
             test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
             interval: 10s
@@ -28,9 +28,7 @@ services:
             retries: 5
 
     worker:
-        build:
-            context: ./backend
-            dockerfile: Dockerfile
+        image: ghcr.io/lessan-cyber/auris/backend:latest
         container_name: auris-worker
         environment:
             - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
@@ -45,6 +43,33 @@ services:
                 condition: service_healthy
             rustfs:
                 condition: service_healthy
+            migrate:
+                condition: service_completed_successfully
+
+    migrate:
+        image: ghcr.io/lessan-cyber/auris/backend:latest
+        container_name: auris-migrator
+        environment:
+            - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+            - RUSTFS_ENDPOINT=http://rustfs:9000
+            - RUSTFS_ACCESS_KEY=${RUSTFS_ACCESS_KEY}
+            - RUSTFS_SECRET_KEY=${RUSTFS_SECRET_KEY}
+            - RUSTFS_BUCKET_NAME=${RUSTFS_BUCKET_NAME}
+            - RUST_LOG=info
+        command: ["backend", "--execution-mode", "migrate"]
+        depends_on:
+            postgres:
+                condition: service_healthy
+            rustfs:
+                condition: service_healthy
+
+    frontend:
+        image: ghcr.io/lessan-cyber/auris/frontend:latest
+        container_name: auris-frontend
+        ports:
+            - "8080:8080"
+        depends_on:
+            - api
 
     postgres:
         container_name: database
