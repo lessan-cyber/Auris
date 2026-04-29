@@ -112,7 +112,7 @@ The test suite is generated with a Python script using FFmpeg. Given one or two 
 
 | File | Transformation | What it tests |
 |---|---|---|
-| `00_clean_target.mp3` | 15s clip from 0:30, clean or equal mix | Baseline |
+| `clean_target.mp3` | 15s clip from 0:30, clean or equal mix | Baseline |
 | `var_noise.mp3` | + white noise at 20% amplitude | SNR robustness |
 | `var_fast.mp3` | `atempo=1.10` (10% speed increase) | Time-scaling tolerance |
 | `var_muffled.mp3` | Low-pass filter at 1000Hz | Frequency loss robustness |
@@ -136,29 +136,6 @@ uv run generate_samples.py song_a.mp3 --song2 song_b.mp3 --out ./test_samples
 **Worst-case combined (below 10% speed change).** The `shazam_test_bar.mp3` variant applies speed change, noise, echo, and bandpass filtering simultaneously. Auris identifies the source track as long as the speed change stays below the 10% threshold described below.
 
 ## Algorithm Behavior & Boundaries
-
-### Test sample generation
-
-The test suite is generated with a Python script using FFmpeg.
-Given one or two source tracks, it produces six variants from
-a 15-second clip starting at 0:30:
-
-| File | Transformation | What it tests |
-|---|---|---|
-| `clean_target.mp3` | Clean clip, or equal-volume mix of two tracks | Baseline |
-| `var_noise.mp3` | + white noise at 20% amplitude | SNR robustness |
-| `var_fast.mp3` | `atempo=1.10` — 10% speed increase | Time-scaling tolerance |
-| `var_muffled.mp3` | Low-pass filter at 1000Hz | Frequency loss robustness |
-| `var_phone.mp3` | Bandpass 300–3000Hz + +6dB gain | Telephone / room acoustics |
-| `shazam_test_bar.mp3` | Speed up + noise + echo + bandpass combined | Worst-case |
-
-```bash
-# Single track
-python generate_samples.py song.mp3 --out ./test_samples
-
-# Mixed track
-python generate_samples.py song_a.mp3 --song2 song_b.mp3 --out ./test_samples
-```
 
 ### Single track — all variants identified
 
@@ -222,8 +199,8 @@ Requirements: Docker, Rust toolchain, pnpm.
 ```bash
 # setup environement variable
 mv .env.example .env
-# after setting up the variables make a copy to the frontend
-cp .env ./frontend
+# frontend only needs public Vite variables
+printf 'VITE_API_URL=http://localhost:8000\n' > frontend/.env
 # start the backing services (database and storage)
 docker compose up postgres rustfs
 # run migrations 
