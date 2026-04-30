@@ -74,7 +74,7 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
 
                     <div className="absolute top-3 right-3">
                         <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
+                            <DropdownMenuTrigger>
                                 <button className="p-2 bg-background/80 hover:bg-background backdrop-blur-md rounded-xl border border-border/50 transition-all shadow-sm">
                                     <MoreVert className="w-4 h-4 text-foreground" />
                                 </button>
@@ -137,7 +137,9 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
 
                     <div className="flex items-center justify-between mt-auto">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
-                            {formatDuration(track.duration_secs)}
+                            {track.status === "ready"
+                                ? formatDuration(track.duration_secs)
+                                : "Processing…"}
                         </span>
                         <button
                             onClick={() => setDetailsOpen(true)}
