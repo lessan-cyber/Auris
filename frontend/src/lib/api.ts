@@ -57,7 +57,11 @@ export const trackApi = {
 export const identifyApi = {
     match: async (
         file: Blob | File,
-        options?: { filename?: string; transparency?: boolean },
+        options?: {
+            filename?: string;
+            transparency?: boolean;
+            signal?: AbortSignal;
+        },
     ) => {
         const filename =
             options?.filename ??
@@ -77,6 +81,7 @@ export const identifyApi = {
                     "Content-Type": contentType,
                 },
                 timeout: 60000,
+                signal: options?.signal,
             })
             .then((r) => r.data);
     },

@@ -1,10 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useDropzone, type FileRejection } from "react-dropzone";
 import { AudioRecorder } from "@/components/identify/AudioRecorder";
 import { identifyApi } from "@/lib/api";
 import type { MatchResult } from "@/types";
 import { MusicNote, Microphone, Upload, SineWave } from "iconoir-react";
 import { Badge } from "@/components/ui/badge";
+import axios from "axios";
 
 const getFilenameFromMimeType = (mimeType: string | undefined): string => {
     if (!mimeType) return "recording.unknown";
@@ -34,9 +35,18 @@ export function Identify() {
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<"record" | "upload">("record");
     const [error, setError] = useState<string | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
 
     const handleIdentify = useCallback(
         async (file: File | Blob, filename?: string) => {
+            // Abort any existing request
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+
+            const controller = new AbortController();
+            abortControllerRef.current = controller;
+
             setLoading(true);
             setError(null);
             setResults(null);
@@ -48,12 +58,18 @@ export function Identify() {
                         (file instanceof File
                             ? file.name
                             : getFilenameFromMimeType(file.type)),
+                    signal: controller.signal,
                 });
                 setResults(data.matches);
                 if (data.matches.length === 0) {
                     setError("No matches found in library.");
                 }
             } catch (err: unknown) {
+                if (axios.isCancel(err)) {
+                    console.log("Request canceled:", err.message);
+                    return; // Don't update state if canceled
+                }
+
                 console.error(err);
                 const e = err as {
                     response?: { data?: { error?: string; message?: string } };
@@ -64,11 +80,22 @@ export function Identify() {
                     serverMessage || "Identification failed. Please try again.",
                 );
             } finally {
-                setLoading(false);
+                if (abortControllerRef.current === controller) {
+                    setLoading(false);
+                    abortControllerRef.current = null;
+                }
             }
         },
         [],
     );
+
+    useEffect(() => {
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+        };
+    }, []);
 
     const onDrop = useCallback(
         (accepted: File[], fileRejections: FileRejection[]) => {
@@ -146,7 +173,18 @@ export function Identify() {
 
             <div className="bg-card border-[1.5px] border-border rounded-3xl p-8 sketch-shadow mb-12">
                 {activeTab === "record" ? (
-                    <AudioRecorder onRecorded={handleIdentify} />
+                    <AudioRecorder
+                        onRecorded={handleIdentify}
+                        onReset={() => {
+                            if (abortControllerRef.current) {
+                                abortControllerRef.current.abort();
+                                abortControllerRef.current = null;
+                            }
+                            setResults(null);
+                            setError(null);
+                            setLoading(false);
+                        }}
+                    />
                 ) : (
                     <div
                         {...getRootProps()}
