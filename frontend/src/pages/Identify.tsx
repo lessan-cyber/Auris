@@ -146,7 +146,13 @@ export function Identify() {
 
             <div className="bg-card border-[1.5px] border-border rounded-3xl p-8 sketch-shadow mb-12">
                 {activeTab === "record" ? (
-                    <AudioRecorder onRecorded={handleIdentify} />
+                    <AudioRecorder
+                        onRecorded={handleIdentify}
+                        onReset={() => {
+                            setResults(null);
+                            setError(null);
+                        }}
+                    />
                 ) : (
                     <div
                         {...getRootProps()}

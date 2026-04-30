@@ -40,8 +40,9 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
     const [artist, setArtist] = useState(track.artist || "");
     const [isDeleting, setIsDeleting] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
-    const toastId = toast.loading("🔗 Generating track link...");
+
     const handleCopyTrackLink = async () => {
+        const toastId = toast.loading("🔗 Generating track link...");
         try {
             const response = await trackApi.getPresignedUrl(track.id);
             const signedUrl = response.url;
@@ -62,114 +63,147 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
 
     return (
         <>
-            <div className="bg-card border border-border p-0 h-80 w-full flex flex-col group">
-                <div className="relative h-60 bg-muted/30 overflow-hidden">
-                    <div className="w-full h-full flex items-center justify-center">
+            <div className="bg-card border-[1.5px] border-border rounded-3xl p-0 h-full w-full flex flex-col group sketch-shadow hover:-translate-x-0.5 hover:-translate-y-0.5 transition-all duration-300">
+                <div className="relative aspect-4/3 bg-muted/20 rounded-t-[1.35rem] overflow-hidden border-b-[1.5px] border-border/50">
+                    <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-110">
                         <MusicNote
-                            className="w-12 h-12 text-muted-foreground/50"
+                            className="w-16 h-16 text-muted-foreground/30"
                             strokeWidth={1}
                         />
                     </div>
 
-                    <div className="absolute top-2 right-2">
+                    <div className="absolute top-3 right-3">
                         <DropdownMenu>
-                            <DropdownMenuTrigger>
-                                <button className="p-1.5 hover:bg-black/20 backdrop-blur-sm rounded-lg transition-opacity">
+                            <DropdownMenuTrigger asChild>
+                                <button className="p-2 bg-background/80 hover:bg-background backdrop-blur-md rounded-xl border border-border/50 transition-all shadow-sm">
                                     <MoreVert className="w-4 h-4 text-foreground" />
                                 </button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
+                            <DropdownMenuContent
+                                align="end"
+                                className="rounded-xl border-[1.5px] border-border sketch-shadow"
+                            >
                                 <DropdownMenuItem
                                     onClick={() => setDetailsOpen(true)}
-                                    className="gap-2"
+                                    className="gap-3 py-2.5 cursor-pointer"
                                 >
-                                    <InfoCircle className="w-4 h-4" />
-                                    Details
+                                    <InfoCircle className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium">Details</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                     onClick={() => setEditOpen(true)}
-                                    className="gap-2"
+                                    className="gap-3 py-2.5 cursor-pointer"
                                 >
-                                    <EditPencil className="w-4 h-4" />
-                                    Edit metadata
+                                    <EditPencil className="w-4 h-4 text-muted-foreground" />
+                                    <span className="font-medium">
+                                        Edit metadata
+                                    </span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
                                     onClick={() => setDeleteConfirmOpen(true)}
-                                    className="gap-2 text-destructive focus:text-destructive"
+                                    className="gap-3 py-2.5 text-destructive focus:text-destructive cursor-pointer"
                                 >
                                     <Trash className="w-4 h-4" />
-                                    Delete
+                                    <span className="font-medium">Delete</span>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
                     </div>
+
+                    {track.status !== "ready" && (
+                        <div className="absolute bottom-3 left-3">
+                            <div className="px-3 py-1 bg-background/90 backdrop-blur-md border border-border/50 rounded-full flex items-center gap-2">
+                                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-foreground">
+                                    {track.status}
+                                </span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                <div className="p-4">
-                    <h3
-                        className="font-medium text-foreground truncate mb-1"
-                        title={track.title}
-                    >
-                        {track.title}
-                    </h3>
-                    <p className="text-sm text-muted-foreground truncate">
-                        {track.artist || "Unknown artist"}
-                    </p>
+                <div className="p-5 flex-1 flex flex-col justify-between">
+                    <div className="mb-4">
+                        <h3
+                            className="font-bold text-foreground text-lg leading-tight truncate mb-1"
+                            title={track.title}
+                        >
+                            {track.title}
+                        </h3>
+                        <p className="text-sm font-medium text-muted-foreground truncate opacity-80">
+                            {track.artist || "Unknown artist"}
+                        </p>
+                    </div>
+
+                    <div className="flex items-center justify-between mt-auto">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/60">
+                            {formatDuration(track.duration_secs)}
+                        </span>
+                        <button
+                            onClick={() => setDetailsOpen(true)}
+                            className="text-[10px] font-bold uppercase tracking-widest text-primary hover:underline"
+                        >
+                            View Details
+                        </button>
+                    </div>
                 </div>
             </div>
 
             <Dialog open={detailsOpen} onOpenChange={setDetailsOpen}>
-                <DialogContent className="bg-card border-border max-w-md">
+                <DialogContent className="bg-card border-[1.5px] border-border rounded-3xl sketch-shadow max-w-md">
                     <DialogHeader>
-                        <DialogTitle className="text-foreground">
+                        <DialogTitle className="text-foreground text-2xl font-bold">
                             Track Details
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 pt-4">
-                        <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
+                    <div className="space-y-5 pt-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
                                 ID
                             </label>
-                            <div className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground break-all">
+                            <div className="w-full px-4 py-3 bg-muted/30 border-[1.5px] border-border rounded-xl text-sm text-foreground break-all font-mono">
                                 {track.id}
                             </div>
                         </div>
-                        <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
                                 Title
                             </label>
-                            <div className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground">
+                            <div className="w-full px-4 py-3 bg-muted/30 border-[1.5px] border-border rounded-xl text-sm text-foreground font-bold">
                                 {track.title}
                             </div>
                         </div>
-                        <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
                                 Artist
                             </label>
-                            <div className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground">
+                            <div className="w-full px-4 py-3 bg-muted/30 border-[1.5px] border-border rounded-xl text-sm text-foreground font-bold">
                                 {track.artist || "Unknown artist"}
                             </div>
                         </div>
-                        <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-                                Duration
-                            </label>
-                            <div className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground">
-                                {formatDuration(track.duration_secs)}
+                        <div className="flex gap-4">
+                            <div className="flex-1 space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
+                                    Duration
+                                </label>
+                                <div className="w-full px-4 py-3 bg-muted/30 border-[1.5px] border-border rounded-xl text-sm text-foreground font-bold text-center">
+                                    {formatDuration(track.duration_secs)}
+                                </div>
+                            </div>
+                            <div className="flex-1 space-y-1.5">
+                                <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
+                                    Status
+                                </label>
+                                <div className="w-full px-4 py-3 bg-muted/30 border-[1.5px] border-border rounded-xl text-sm text-foreground font-bold text-center uppercase tracking-widest">
+                                    {track.status}
+                                </div>
                             </div>
                         </div>
-                        <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
-                                Status
-                            </label>
-                            <div className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground">
-                                {track.status}
-                            </div>
-                        </div>
-                        <div className="flex justify-end">
+                        <div className="flex justify-end pt-2">
                             <Button
                                 variant="outline"
                                 onClick={handleCopyTrackLink}
+                                className="rounded-xl font-bold text-xs uppercase tracking-widest sketch-shadow-hover transition-all"
                             >
                                 Copy Track Link
                             </Button>
@@ -182,22 +216,26 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                 open={deleteConfirmOpen}
                 onOpenChange={setDeleteConfirmOpen}
             >
-                <DialogContent className="bg-card border-border">
+                <DialogContent className="bg-card border-[1.5px] border-border rounded-3xl sketch-shadow">
                     <DialogHeader>
-                        <DialogTitle className="text-foreground">
+                        <DialogTitle className="text-foreground text-2xl font-bold">
                             Delete Track
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 pt-4">
-                        <p className="text-sm text-muted-foreground">
-                            Are you sure you want to delete "{track.title}"?
-                            This action cannot be undone.
+                    <div className="space-y-6 pt-4">
+                        <p className="text-muted-foreground font-medium">
+                            Are you sure you want to delete{" "}
+                            <span className="text-foreground font-bold">
+                                "{track.title}"
+                            </span>
+                            ? This action cannot be undone.
                         </p>
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-3">
                             <Button
                                 variant="outline"
                                 onClick={() => setDeleteConfirmOpen(false)}
                                 disabled={isDeleting}
+                                className="rounded-xl font-bold text-xs uppercase tracking-widest"
                             >
                                 Cancel
                             </Button>
@@ -209,15 +247,17 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                                     try {
                                         await onDelete(track.id);
                                         setDeleteConfirmOpen(false);
+                                        toast.success(
+                                            "✅ Track deleted successfully",
+                                        );
                                     } catch (error) {
                                         console.error(
-                                            "Failed to get or copy track link:",
+                                            "Failed to delete track:",
                                             error,
                                         );
                                         toast.error(
-                                            "Failed to get track link",
+                                            "❌ Failed to delete track",
                                             {
-                                                id: toastId,
                                                 description:
                                                     "Please try again later",
                                             },
@@ -226,8 +266,11 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                                         setIsDeleting(false);
                                     }
                                 }}
+                                className="rounded-xl font-bold text-xs uppercase tracking-widest sketch-shadow-hover"
                             >
-                                {isDeleting ? "Deleting..." : "Delete"}
+                                {isDeleting
+                                    ? "Deleting..."
+                                    : "Delete Permanently"}
                             </Button>
                         </div>
                     </div>
@@ -236,40 +279,41 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
 
             {/* Edit Dialog */}
             <Dialog open={editOpen} onOpenChange={setEditOpen}>
-                <DialogContent className="bg-card border-border">
+                <DialogContent className="bg-card border-[1.5px] border-border rounded-3xl sketch-shadow">
                     <DialogHeader>
-                        <DialogTitle className="text-foreground">
+                        <DialogTitle className="text-foreground text-2xl font-bold">
                             Edit Track
                         </DialogTitle>
                     </DialogHeader>
-                    <div className="space-y-4 pt-4">
-                        <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
+                    <div className="space-y-6 pt-4">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
                                 Title
                             </label>
                             <input
                                 value={title}
                                 onChange={(e) => setTitle(e.target.value)}
                                 disabled={isSaving}
-                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                                className="w-full px-4 py-3 bg-muted/30 border-[1.5px] border-border rounded-xl text-sm text-foreground font-bold focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all disabled:opacity-50"
                             />
                         </div>
-                        <div>
-                            <label className="text-sm font-medium text-muted-foreground mb-1.5 block">
+                        <div className="space-y-1.5">
+                            <label className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">
                                 Artist
                             </label>
                             <input
                                 value={artist}
                                 onChange={(e) => setArtist(e.target.value)}
                                 disabled={isSaving}
-                                className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
+                                className="w-full px-4 py-3 bg-muted/30 border-[1.5px] border-border rounded-xl text-sm text-foreground font-bold focus:outline-none focus:ring-2 focus:ring-primary/40 transition-all disabled:opacity-50"
                             />
                         </div>
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-3">
                             <Button
                                 variant="outline"
                                 onClick={() => setEditOpen(false)}
                                 disabled={isSaving}
+                                className="rounded-xl font-bold text-xs uppercase tracking-widest"
                             >
                                 Cancel
                             </Button>
@@ -298,8 +342,9 @@ export function TrackCard({ track, onDelete, onEdit }: TrackCardProps) {
                                         setIsSaving(false);
                                     }
                                 }}
+                                className="rounded-xl font-bold text-xs uppercase tracking-widest sketch-shadow-hover"
                             >
-                                {isSaving ? "Saving..." : "Save"}
+                                {isSaving ? "Saving..." : "Save Changes"}
                             </Button>
                         </div>
                     </div>

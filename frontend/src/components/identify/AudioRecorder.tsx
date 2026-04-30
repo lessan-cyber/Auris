@@ -5,19 +5,30 @@ import { useAudioRecorder } from "@/hooks/useAudioRecorder";
 
 interface AudioRecorderProps {
     onRecorded: (blob: Blob) => void;
+    onReset?: () => void;
 }
 
-export function AudioRecorder({ onRecorded }: AudioRecorderProps) {
+export function AudioRecorder({ onRecorded, onReset }: AudioRecorderProps) {
     const {
         isRecording,
         isStarting,
         progress,
         audioBlob,
         analyser,
-        startRecording,
+        startRecording: originalStartRecording,
         stopRecording,
-        reset,
+        reset: originalReset,
     } = useAudioRecorder(15000);
+
+    const startRecording = () => {
+        onReset?.();
+        originalStartRecording();
+    };
+
+    const reset = () => {
+        onReset?.();
+        originalReset();
+    };
 
     const [waveform, setWaveform] = useState<number[]>(Array(40).fill(5));
     const animationRef = useRef<number | null>(null);

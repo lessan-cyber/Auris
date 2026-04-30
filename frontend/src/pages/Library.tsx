@@ -2,6 +2,7 @@ import {
     useState,
     useEffect,
     useContext,
+    useRef,
     type Dispatch,
     type SetStateAction,
 } from "react";
@@ -15,6 +16,7 @@ import type { Track, TrackListResponse } from "@/types";
 import { UploadNotificationContext } from "@/lib/contexts";
 import type { UploadNotificationContextType } from "@/lib/contexts";
 import type { UpdateTrackRequest } from "@/types";
+import { toast } from "sonner";
 
 const noopSetUploadNotifications: Dispatch<
     SetStateAction<{ track_id: string; status: string; message?: string }[]>
@@ -57,6 +59,7 @@ export function Library() {
 
     const totalPages = totalCount ? Math.ceil(totalCount / itemsPerPage) : 1;
     const hasTracks = tracks && tracks.length > 0;
+    const pollingToastId = useRef<string | number | null>(null);
 
     useEffect(() => {
         const trackId = localStorage.getItem("recentUploadTrackId");
@@ -70,6 +73,10 @@ export function Library() {
 
             if (attempts > maxAttempts) {
                 console.error("Polling timeout for track:", trackId);
+                if (pollingToastId.current) {
+                    toast.dismiss(pollingToastId.current);
+                    pollingToastId.current = null;
+                }
                 setUploadNotifications((prev) => [
                     {
                         track_id: trackId,
@@ -87,47 +94,67 @@ export function Library() {
             try {
                 const track = await trackApi.get(trackId);
 
-                // Create notification based on status
-                let message = "";
-                if (track.status === "pending") {
-                    message = "Upload received, waiting for processing";
-                } else if (track.status === "fingerprinting") {
-                    message = "🎵 Inking fingerprints...";
-                } else if (track.status === "ready") {
-                    message = "✅ Track ready!";
-                } else if (track.status === "error") {
-                    message = "❌ Processing failed";
+                // Handle toast for intermediate statuses
+                if (
+                    track.status === "pending" ||
+                    track.status === "fingerprinting"
+                ) {
+                    const message =
+                        track.status === "pending"
+                            ? "Upload received, waiting for processing"
+                            : "🎵 Inking fingerprints...";
+
+                    if (pollingToastId.current) {
+                        toast.loading(message, { id: pollingToastId.current });
+                    } else {
+                        pollingToastId.current = toast.loading(message);
+                    }
+                    return;
                 }
 
-                setUploadNotifications((prev) => {
-                    const existingIndex = prev.findIndex(
-                        (n) => n.track_id === trackId,
-                    );
-                    const newNotification = {
-                        track_id: trackId,
-                        status: track.status,
-                        message,
-                    };
-
-                    if (existingIndex >= 0) {
-                        return prev.map((n, i) =>
-                            i === existingIndex ? newNotification : n,
-                        );
-                    } else {
-                        return [newNotification, ...prev];
-                    }
-                });
-
+                // Handle final statuses
                 if (track.status === "ready" || track.status === "error") {
+                    if (pollingToastId.current) {
+                        toast.dismiss(pollingToastId.current);
+                        pollingToastId.current = null;
+                    }
+
+                    const message =
+                        track.status === "ready"
+                            ? "✅ Track ready!"
+                            : "❌ Processing failed";
+
+                    setUploadNotifications((prev) => {
+                        const existingIndex = prev.findIndex(
+                            (n) => n.track_id === trackId,
+                        );
+                        const newNotification = {
+                            track_id: trackId,
+                            status: track.status,
+                            message,
+                        };
+
+                        if (existingIndex >= 0) {
+                            return prev.map((n, i) =>
+                                i === existingIndex ? newNotification : n,
+                            );
+                        } else {
+                            return [newNotification, ...prev];
+                        }
+                    });
+
                     clearInterval(pollInterval);
                     localStorage.removeItem("recentUploadTrackId");
-
                     queryClient.invalidateQueries({ queryKey: ["tracks"] });
                 }
             } catch (error) {
                 console.error("Polling error:", error);
 
                 if (attempts > maxAttempts / 2) {
+                    if (pollingToastId.current) {
+                        toast.dismiss(pollingToastId.current);
+                        pollingToastId.current = null;
+                    }
                     clearInterval(pollInterval);
                     localStorage.removeItem("recentUploadTrackId");
                 }
@@ -136,6 +163,9 @@ export function Library() {
 
         return () => {
             clearInterval(pollInterval);
+            if (pollingToastId.current) {
+                toast.dismiss(pollingToastId.current);
+            }
         };
     }, [queryClient, setUploadNotifications]);
 
@@ -169,24 +199,26 @@ export function Library() {
     }
 
     return (
-        <div className="max-w-7xl mx-auto px-4 py-12 bg-background transition-colors duration-300">
-            <div className="flex items-end justify-between mb-10 border-b-[1.5px] border-border pb-6">
+        <div className="max-w-7xl mx-auto px-4 py-16 bg-background transition-colors duration-300">
+            <div className="flex flex-col md:flex-row md:items-end justify-between mb-12 gap-6">
                 <div>
-                    <h1 className="text-4xl font-bold text-foreground tracking-tight mb-1">
+                    <h1 className="text-4xl font-bold text-foreground tracking-tight mb-3">
                         Library
                     </h1>
-                    <p className="text-sm text-muted-foreground font-medium">
+                    <p className="text-muted-foreground font-medium">
                         Your collection of fingerprinted tracks
                     </p>
                 </div>
-                <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground bg-muted px-3 py-1 rounded-full border border-border">
-                    {totalCount || 0} Total
-                </span>
+                <div className="flex items-center gap-4">
+                    <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground bg-muted/50 px-4 py-2 rounded-xl border-[1.5px] border-border">
+                        {totalCount || 0} Total Tracks
+                    </span>
+                </div>
             </div>
 
             {hasTracks ? (
                 <>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                         {tracks?.map((track: Track) => (
                             <TrackCard
                                 key={track.id}
@@ -205,31 +237,31 @@ export function Library() {
                     </div>
 
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-center gap-2 mt-8">
+                        <div className="flex items-center justify-center gap-4 mt-12">
                             <Button
                                 variant="outline"
-                                size="icon"
                                 onClick={() =>
                                     setPage((p) => Math.max(1, p - 1))
                                 }
                                 disabled={page === 1}
-                                className="size-8"
+                                className="px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest sketch-shadow-hover transition-all disabled:opacity-50 disabled:translate-0 disabled:shadow-none"
                             >
-                                <NavArrowLeft className="w-4 h-4" />
+                                <NavArrowLeft className="w-4 h-4 mr-2" />
+                                Previous
                             </Button>
-                            <span className="text-sm font-medium text-muted-foreground">
-                                Page {page} of {totalPages}
+                            <span className="text-sm font-bold text-foreground bg-muted/30 px-4 py-2 rounded-xl border-[1.5px] border-border">
+                                {page} / {totalPages}
                             </span>
                             <Button
                                 variant="outline"
-                                size="icon"
                                 onClick={() =>
                                     setPage((p) => Math.min(totalPages, p + 1))
                                 }
                                 disabled={page === totalPages}
-                                className="size-8"
+                                className="px-4 py-2 rounded-xl font-bold text-xs uppercase tracking-widest sketch-shadow-hover transition-all disabled:opacity-50 disabled:translate-0 disabled:shadow-none"
                             >
-                                <NavArrowRight className="w-4 h-4" />
+                                Next
+                                <NavArrowRight className="w-4 h-4 ml-2" />
                             </Button>
                         </div>
                     )}
